@@ -18,6 +18,15 @@ class StorageClass(Enum):
     STD = 'Standard'
     GLR = 'Glacier'
 
+SCALE_PREFIX = [ '', 'K', 'M', 'G', 'T', 'P', 'E', 'Z' ]
+
+def hsize(size, decimals: int = 1, suffix: str = 'B'):
+    scale = 0
+    while size > 1024:
+        size = size / 1024
+        scale += 1
+    return f'{round(size, decimals)}{SCALE_PREFIX[scale]}{suffix}'
+
 def stem(path: str):
     return os.path.splitext(os.path.basename(path))[0]
 
@@ -112,7 +121,7 @@ class S3():
                 fwb.write(chunk)
 
     def get_request_bucket(self, bucket: str = None):
-        return enval(bucket) if bucket is not None else self.bucket
+        return bucket if bucket is not None else self.bucket
 
     def head_object(self, key: str,
             bucket: str = None,
@@ -162,6 +171,15 @@ class S3():
                 }
             ]
         }
+
+    def put(self, key: str, body: str,
+            bucket: str = None):
+        kwargs = {
+            'Bucket': self.get_request_bucket(bucket),
+            'Key': key,
+            'Body': body,
+        }
+        self.client.put_object(**kwargs)
 
     def restore_object(self, key: str,
             bucket: str = None,

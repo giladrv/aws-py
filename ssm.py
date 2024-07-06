@@ -3,7 +3,7 @@ import json
 # External
 import boto3
 
-CLIENT_NAME = 'secretsmanager'
+CLIENT_NAME = 'ssm'
 
 class SSM():
     
@@ -16,10 +16,14 @@ class SSM():
             self.client = boto3.Session(profile_name = profile).client(CLIENT_NAME)
         else:
             self.client = boto3.client(CLIENT_NAME)
+
+    def get_key_value(self, key_id: str):
+        kwargs = {
+            'Name': f'/ec2/keypair/{key_id}',
+            'WithDecryption': True,
+        }
+        return self.client.get_parameter(**kwargs)['Parameter']['Value']
     
-    def get_secret_value(self, secret_id: str, key: str = None):
-        secret = json.loads(self.client.get_secret_value(SecretId = secret_id)['SecretString'])
-        if key is None:
-            return secret
-        else:
-            return secret[key]
+    def download_key(self, key_id: str, key_file: str):
+        with open(key_file, 'w') as f:
+            f.write(self.get_key_value(key_id))

@@ -25,6 +25,9 @@ class OutputType(Enum):
     Body = 3
     JsonBody = 4
 
+def clear_tmp():
+    pass
+
 def out_raw(response):
     return response
 
