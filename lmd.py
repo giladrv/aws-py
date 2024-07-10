@@ -10,7 +10,7 @@ from botocore.config import Config
 from . import enval
 
 DEF_KWARGS = {
-    'config': Config(read_timeout = 600, retries = {'max_attempts': 0}, region_name = 'ap-southeast-1'),
+    'config': Config(retries = {'total_max_attempts': 1}),
 }
 
 CLIENT_NAME = 'lambda'
