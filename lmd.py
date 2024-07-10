@@ -1,6 +1,8 @@
 # Standard
 from enum import Enum
 import json
+import os
+import shutil
 # External
 import boto3
 from botocore.config import Config
@@ -25,8 +27,23 @@ class OutputType(Enum):
     Body = 3
     JsonBody = 4
 
-def clear_tmp():
-    pass
+def clear_tmp(verbose = False):
+    tmp_size = 0
+    for filename in os.listdir('/tmp'):
+        filepath = os.path.join('/tmp', filename)
+        tmp_size += os.path.getsize(filepath)
+        try:
+            if os.path.isfile(filepath) or os.path.islink(filepath):
+                os.unlink(filepath)
+            elif os.path.isdir(filepath):
+                shutil.rmtree(filepath)
+            if verbose:
+                print(f'DEL {filename}')
+        except Exception as e:
+            print(f'ERR {filename} - {e}')
+    if verbose:
+        print('/tmp', tmp_size)
+
 
 def out_raw(response):
     return response
