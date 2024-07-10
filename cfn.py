@@ -65,7 +65,7 @@ class CFN():
         return res["StackId"]
 
     def wait(self, name: str, done_status: List[str], loop_status: List[str],
-            callback: Callable = None):
+            callback: Callable[[Dict[str, Any]], None] = None):
         while True:
             time.sleep(self.wait_delay)
             stack = self.describe_stack(name)
@@ -77,8 +77,8 @@ class CFN():
             if callback is not None:
                 callback(stack)
 
-    def wait_create(self, name: str, callback: Callable = None):
+    def wait_create(self, name: str, callback: Callable[[Dict[str, Any]], None] = None):
         return self.wait(name, ['CREATE_COMPLETE'], ['CREATE_IN_PROGRESS'], callback = callback)
 
-    def wait_update(self, name: str, callback: Callable = None):
+    def wait_update(self, name: str, callback: Callable[[Dict[str, Any]], None] = None):
         return self.wait(name, ['UPDATE_COMPLETE'], ['UPDATE_IN_PROGRESS','UPDATE_COMPLETE_CLEANUP_IN_PROGRESS'], callback = callback)
