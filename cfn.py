@@ -4,6 +4,7 @@ import time
 from typing import Any, Callable, Dict, List
 # External
 import boto3
+from botocore.exceptions import ClientError
 
 INVOKE_DEST = "{ Destination: !Ref {resource} }"
 LAYER_PREFIX = "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer"
@@ -42,7 +43,8 @@ class CFN():
         return self.client.describe_stacks(StackName = name)['Stacks'][0]
 
     def update_stack(self, name: str, bucket: str, key: str,
-            params: Dict[str, Any] = None):
+            params: Dict[str, Any] = None,
+            ignore_nochange: bool = True):
         kwargs = {
             "StackName": name,
             "TemplateURL": f"https://s3.amazonaws.com/{bucket}/{key}",
@@ -61,8 +63,13 @@ class CFN():
             kwargs["Capabilities"].append(Capability.NamedIAM.value)
         elif self.capability_named_iam == False:
             kwargs["Capabilities"].append(Capability.IAM.value)
-        res = self.client.update_stack(**kwargs)
-        return res["StackId"]
+        try:
+            res = self.client.update_stack(**kwargs)
+            return res["StackId"]
+        except ClientError as e:
+            if ignore_nochange and e.response['Error']['Message'] == 'No updates are to be performed.':
+                return name
+            raise
 
     def wait(self, name: str, done_status: List[str], loop_status: List[str],
             callback: Callable[[Dict[str, Any]], None] = None):
