@@ -78,7 +78,7 @@ class CFN():
                 callback(stack)
 
     def wait_create(self, name: str, callback: Callable = None):
-        return self.wait(name, ['CREATE_COMPLETE'], ['CREATE_IN_PROGRESS'])
+        return self.wait(name, ['CREATE_COMPLETE'], ['CREATE_IN_PROGRESS'], callback = callback)
 
     def wait_update(self, name: str, callback: Callable = None):
-        return self.wait(name, ['UPDATE_COMPLETE'], ['UPDATE_IN_PROGRESS','UPDATE_COMPLETE_CLEANUP_IN_PROGRESS'])
+        return self.wait(name, ['UPDATE_COMPLETE'], ['UPDATE_IN_PROGRESS','UPDATE_COMPLETE_CLEANUP_IN_PROGRESS'], callback = callback)
