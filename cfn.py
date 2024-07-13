@@ -32,6 +32,22 @@ class CFN():
         self.capability_named_iam = capability_named_iam
         self.wait_delay = wait_delay
 
+    def describe_events(self, stack: str):
+        kwargs = { 'StackName': stack }
+        events = []
+        cont = True
+        while cont:
+            res = self.client.describe_stack_events(**kwargs)
+            for event in res['StackEvents']:
+                events.append(event)
+                if event.get('ResourceStatusReason', None) == 'User Initiated':
+                    cont = False
+                    break
+            kwargs['NextToken'] = res.get('NextToken', None)
+            if kwargs['NextToken'] is None:
+                break
+        return list(reversed(events))
+
     def describe_resource(self, stack: str, resource: str):
         kwargs = {
             'StackName': stack,
