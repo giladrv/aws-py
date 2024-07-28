@@ -81,7 +81,11 @@ OUT_FUN = {
 
 class LMD():
 
-    def __init__(self, client = None, profile: str = None, kwargs: dict = None, prefix: str = None):
+    def __init__(self,
+            client = None,
+            profile: str | None = None,
+            kwargs: dict | None = None,
+            prefix: str | None = None):
         if kwargs is None:
             kwargs = DEF_KWARGS
         else:
