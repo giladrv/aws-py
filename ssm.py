@@ -1,5 +1,5 @@
 # Standard
-import json
+import os
 # External
 import boto3
 
@@ -9,7 +9,7 @@ class SSM():
     
     def __init__(self,
             client = None,
-            profile: str = None):
+            profile: str | None = None):
         if client is not None:
             self.client = client
         elif profile is not None:
@@ -27,3 +27,4 @@ class SSM():
     def download_key(self, key_id: str, key_file: str):
         with open(key_file, 'w') as f:
             f.write(self.get_key_value(key_id))
+        os.chmod(key_file, 0o400)
