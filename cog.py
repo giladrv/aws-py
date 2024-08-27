@@ -188,6 +188,13 @@ class COG():
             if kwargs['NextToken'] is None:
                 return None
     
+    def resend_confirmation(self, client_id: str, username: str):
+        kwargs = {
+            'ClientId': client_id,
+            'Username': username,
+        }
+        return self.client.resend_confirmation_code(**kwargs)
+    
     def sign_in(self, pool_id: str, client_id: str, username: str, password: str):
         srp = SRP(pool_id, password)
         res = self.client.initiate_auth(
