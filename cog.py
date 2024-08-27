@@ -8,7 +8,6 @@ import os
 import re
 # External
 import boto3
-import requests
 
 COG_ACTIONS = [
     'confirm_user'
@@ -145,7 +144,7 @@ class SRP():
         return response
 
 class IDP():
-
+    import requests
     def __init__(self, region: str,
             pool_id: str | None = None,
             client_id: str | None = None):
@@ -174,7 +173,7 @@ class IDP():
             },
             "ClientId" : client_id,
         }
-        res: dict = requests.post(self.url, json = body, headers = headers).json()
+        res: dict = self.requests.post(self.url, json = body, headers = headers).json()
         challenge_name = res.get('ChallengeName')
         if challenge_name == 'PASSWORD_VERIFIER':
             challenge_res = srp.process_challenge(res['ChallengeParameters'])
@@ -187,7 +186,7 @@ class IDP():
                 "ChallengeResponses" : challenge_res,
                 "ClientId" : client_id,
             }
-            res: dict = requests.post(self.url, json = body, headers = headers).json()
+            res: dict = self.requests.post(self.url, json = body, headers = headers).json()
             if res.get('ChallengeName') == 'NEW_PASSWORD_REQUIRED':
                 raise PermissionError('Change password before authenticating')
             return res['AuthenticationResult']
@@ -211,7 +210,7 @@ class IDP():
                 'Value': email,
             }],
         }
-        return requests.post(self.url, json = body, headers = headers).json()
+        return self.requests.post(self.url, json = body, headers = headers).json()
 
 class COG():
 
