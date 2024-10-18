@@ -151,15 +151,27 @@ class COG():
         else:
             self.client = boto3.client(CLIENT_NAME)
 
-    def confirm_user(self, client_id: str, username: str, code: str):
+    def confirm_forgot(self, client_id: str, name: str, code: str, password: str):
+        self.client.confirm_forgot_password(
+            ClientId = client_id,
+            Username = name,
+            ConfirmationCode = code,
+            Password = password)
+
+    def confirm_user(self, client_id: str, name: str, code: str):
         self.client.confirm_sign_up(
             ClientId = client_id,
-            Username = username,
+            Username = name,
             ConfirmationCode = code)
 
     def delete_user(self, user_pool: str, user_name: str):
         self.client.admin_delete_user(
             UserPoolId = user_pool,
+            Username = user_name)
+
+    def forgot_password(self, client_id: str, user_name: str):
+        return self.client.forgot_password(
+            ClientId = client_id,
             Username = user_name)
 
     def get_client(self, user_pool_id: str, name: str):

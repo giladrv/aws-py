@@ -84,6 +84,7 @@ class LMD():
     def __init__(self,
             client = None,
             profile: str | None = None,
+            region: str | None = None,
             kwargs: dict | None = None,
             prefix: str | None = None):
         if kwargs is None:
@@ -93,7 +94,7 @@ class LMD():
         if client is not None:
             self.client = client
         elif profile is not None:
-            self.client = boto3.Session(profile_name = profile).client(CLIENT_NAME, **kwargs)
+            self.client = boto3.Session(profile_name = profile, region_name = region).client(CLIENT_NAME, **kwargs)
         else:
             self.client = boto3.client(CLIENT_NAME, **kwargs)
         self.prefix = prefix
