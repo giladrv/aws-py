@@ -1,13 +1,15 @@
 # Standard
 from enum import Enum
 import os
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List
 # External
 import boto3
+from botocore.client import Config
 # Internal
 from . import enval
 
 CLIENT_NAME = 's3'
+CLIENT_CONFIG = Config(s3 = { 'addressing_style': 'path' })
 
 class RestoreTier(Enum):
     BLK = 'Bulk'
@@ -40,9 +42,9 @@ class S3():
         if client is not None:
             self.client = client
         elif profile is not None:
-            self.client = boto3.Session(profile_name = profile).client(CLIENT_NAME)
+            self.client = boto3.Session(profile_name = profile).client(CLIENT_NAME, config = CLIENT_CONFIG)
         else:
-            self.client = boto3.client(CLIENT_NAME)
+            self.client = boto3.client(CLIENT_NAME, config = CLIENT_CONFIG)
         self.bucket = enval(bucket)
         self.requester = requester
     
