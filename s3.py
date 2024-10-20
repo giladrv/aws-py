@@ -203,8 +203,11 @@ class S3():
 
     def upload(self, filename: str, key: str,
             bucket: str = None,
-            requester: bool = None):
+            requester: bool = None,
+            meta: Dict[str, str] = None):
         extra_args = {}
+        if meta is not None:
+            extra_args['Metadata'] = meta
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
