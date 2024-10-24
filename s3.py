@@ -33,7 +33,7 @@ def stem(path: str):
     return os.path.splitext(os.path.basename(path))[0]
 
 class S3():
-    
+
     def __init__(self,
             client = None,
             profile: str = None,
@@ -47,7 +47,7 @@ class S3():
             self.client = boto3.client(CLIENT_NAME, config = CLIENT_CONFIG)
         self.bucket = enval(bucket)
         self.requester = requester
-    
+
     def add_request_payer(self,
             kwargs: Dict[str, Any],
             requester: bool = None):
@@ -58,7 +58,10 @@ class S3():
             if self.requester == True:
                 kwargs['RequestPayer'] = 'requester'
 
-    def count_objects(self, prefix: str, bucket: str = None, requester: bool = None, extra_kwargs: dict = None) -> list:
+    def count_objects(self, prefix: str,
+            bucket: str = None,
+            requester: bool = None,
+            extra_kwargs: dict = None) -> list:
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
             'Prefix': prefix,
@@ -78,7 +81,7 @@ class S3():
             else:
                 break
         return count, size
-    
+
     def download(self, key: str,
             bucket: str = None,
             filepath: str = None):
@@ -94,7 +97,7 @@ class S3():
             'Filename': filepath,
         }
         self.client.download_file(**kwargs)
-    
+
     def get_object(self, key: str,
             bucket: str = None,
             requester: bool = None):
@@ -135,7 +138,46 @@ class S3():
         self.add_request_payer(kwargs, requester)
         return self.client.head_object(**kwargs)
 
-    def list_objects(self, prefix: str, bucket: str = None, requester: bool = None, extra_kwargs: dict = None) -> list:
+    def iterate_objects(self,
+            prefix: str = None,
+            bucket: str = None,
+            requester: bool = None,
+            extra_kwargs: dict = None,
+            object_map: Callable = None):
+        kwargs = {
+            'Bucket': self.get_request_bucket(bucket),
+        }
+        if prefix is not None:
+            kwargs['Prefix'] = prefix
+        if extra_kwargs is not None:
+            kwargs.update(extra_kwargs)
+        self.add_request_payer(kwargs, requester)
+        while True:
+            res = self.client.list_objects_v2(**kwargs)
+            if res['KeyCount'] > 0:
+                if object_map is None:
+                    for obj in res['Contents']:
+                        yield obj
+                else:
+                    for obj in res['Contents']:
+                        obj_res = object_map(obj)
+                        if obj_res is not None:
+                            yield obj
+            if res['IsTruncated']:
+                kwargs['ContinuationToken'] = res['NextContinuationToken']
+            else:
+                break
+
+    def list_keys(self, prefix: str,
+            bucket: str = None,
+            requester: bool = None) -> List[str]:
+        contents = self.list_objects(prefix, bucket, requester)
+        return [ obj['Key'] for obj in contents ]
+
+    def list_objects(self, prefix: str,
+            bucket: str = None,
+            requester: bool = None,
+            extra_kwargs: dict = None) -> list:
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
             'Prefix': prefix,
@@ -153,11 +195,7 @@ class S3():
             else:
                 break
         return contents
-    
-    def list_keys(self, prefix: str, bucket: str = None, requester: bool = None) -> List[str]:
-        contents = self.list_objects(prefix, bucket, requester)
-        return [ obj['Key'] for obj in contents ]
-    
+
     def mock_restore(self, key: str, bucket: str = None):
         return {
             'Records': [
