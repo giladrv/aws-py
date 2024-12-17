@@ -1,10 +1,14 @@
 # Standard
 from enum import Enum
+import os
 import time
 from typing import Any, Callable, Dict, List
+from urllib.parse import quote as urlquote
 # External
 import boto3
 from botocore.exceptions import ClientError
+
+EVENTS_URL = 'https://{region}.console.aws.amazon.com/cloudformation/home?region={region}#/stacks/events?stackId={stack}'
 
 INVOKE_DEST = "{ Destination: !Ref {resource} }"
 LAYER_PREFIX = "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer"
@@ -19,6 +23,11 @@ class Capability(Enum):
 
 def extract_outputs(stack_details: dict):
     return { o['OutputKey']: o['OutputValue'] for o in stack_details['Outputs'] }
+
+def get_stack_events_url(stack_id: str):
+    return EVENTS_URL.format(
+        region = os.environ['AWS_REGION'],
+        stack = urlquote(stack_id, safe = ''))
 
 class CFN():
 
