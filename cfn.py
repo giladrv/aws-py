@@ -24,9 +24,9 @@ class Capability(Enum):
 def extract_outputs(stack_details: dict):
     return { o['OutputKey']: o['OutputValue'] for o in stack_details['Outputs'] }
 
-def get_stack_events_url(stack_id: str):
+def get_stack_events_url(region: str, stack_id: str):
     return EVENTS_URL.format(
-        region = os.environ['AWS_REGION'],
+        region = region,
         stack = urlquote(stack_id, safe = ''))
 
 class CFN():
