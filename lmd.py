@@ -9,6 +9,7 @@ from botocore.config import Config
 # Internal
 from . import enval
 
+FUNCTION_URL = 'https://{region}.console.aws.amazon.com/lambda/home?region={region}#/functions/{name}'
 LOG_GROUP_URL = 'https://{region}.console.aws.amazon.com/cloudwatch/home?region={region}#logsV2:log-groups/log-group'
 
 DEF_KWARGS = {
@@ -49,6 +50,13 @@ def clear_tmp(verbose = False):
 def encode_fragment(fragment: str):
     from urllib.parse import quote
     return quote(fragment, safe = '').replace('%', '$25')
+
+def get_function_url(name = None, region = None):
+    if name is None:
+        name = os.environ['AWS_LAMBDA_FUNCTION_NAME']
+    if region is None:
+        region = os.environ['AWS_REGION']
+    return FUNCTION_URL.format(region = region, name = name)
 
 def get_log_stream_url():
     base_url = LOG_GROUP_URL.format(region = os.environ['AWS_REGION'])
