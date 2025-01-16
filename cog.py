@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import os
 import re
+from typing import Dict
 # External
 import boto3
 
@@ -239,3 +240,14 @@ class COG():
         }
         res = self.client.sign_up(**kwargs)
         return res['UserConfirmed']
+
+    def update_custom_attributes(self, pool_id: str, username: str, attributes: Dict[str, str]):
+        kwargs = {
+            'UserAttributes': [
+                { 'Name': f'custom:{key}', 'Value': value }
+                for key, value in attributes.items()
+            ],
+            'Username': username,
+            'UserPoolId': pool_id,
+        }
+        self.client.admin_update_user_attributes(**kwargs)
