@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import os
 import re
-from typing import Dict
+from typing import Any, Dict
 # External
 import boto3
 
@@ -54,6 +54,12 @@ def compute_hkdf(ikm, salt):
     info_bits_update = INFO_BITS + bytearray(chr(1), 'utf-8')
     hmac_hash = hmac.new(prk, info_bits_update, hashlib.sha256).digest()
     return hmac_hash[:16]
+
+def custom_read(a: Dict[str, str]):
+    return { k: v[7:] for k, v in a.items() if v.startswith('custom:') }
+
+def custom_write(d: Dict[str, str]):
+    return [ { 'Name': k, 'Value': f'custom:{v}' } for k, v in d.items() ]
 
 def generate_small_a(big_n):
     random_long_int = get_random(128)
@@ -165,6 +171,15 @@ class COG():
             Username = name,
             ConfirmationCode = code)
 
+    def create_user(self, user_pool: str, user_name: str, email: str, custom: Dict[str, Any] = None):
+        attributes = [ { 'Name': 'email', 'Value': email } ]
+        if custom is not None:
+            attributes.extend(custom_write(custom))
+        return self.client.admin_create_user(
+            UserPoolId = user_pool,
+            Username = user_name,
+            UserAttributes = attributes)['User']
+    
     def delete_user(self, user_pool: str, user_name: str):
         self.client.admin_delete_user(
             UserPoolId = user_pool,
@@ -233,20 +248,14 @@ class COG():
             'ClientId': client_id,
             'Username': username,
             'Password': password,
-            'UserAttributes': [{
-                'Name': 'email',
-                'Value': email,
-            }],
+            'UserAttributes': [ { 'Name': 'email', 'Value': email } ],
         }
         res = self.client.sign_up(**kwargs)
         return res['UserConfirmed']
 
     def update_custom_attributes(self, pool_id: str, username: str, attributes: Dict[str, str]):
         kwargs = {
-            'UserAttributes': [
-                { 'Name': f'custom:{key}', 'Value': value }
-                for key, value in attributes.items()
-            ],
+            'UserAttributes': custom_write(attributes),
             'Username': username,
             'UserPoolId': pool_id,
         }
