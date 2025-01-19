@@ -59,7 +59,7 @@ def custom_read(a: Dict[str, str]):
     return { k: v[7:] for k, v in a.items() if v.startswith('custom:') }
 
 def custom_write(d: Dict[str, str]):
-    return [ { 'Name': k, 'Value': f'custom:{v}' } for k, v in d.items() ]
+    return [ { 'Name': f'custom:{k}', 'Value': str(v) } for k, v in d.items() ]
 
 def generate_small_a(big_n):
     random_long_int = get_random(128)
