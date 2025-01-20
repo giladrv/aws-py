@@ -223,7 +223,7 @@ class COG():
         }
         return self.client.resend_confirmation_code(**kwargs)
     
-    def sign_in(self, pool_id: str, client_id: str, username: str, password: str):
+    def sign_in(self, pool_id: str, client_id: str, username: str, password: str, new_password: str = None):
         srp = SRP(pool_id, password)
         res = self.client.initiate_auth(
             AuthFlow = 'USER_SRP_AUTH',
@@ -234,11 +234,25 @@ class COG():
         if challenge == 'PASSWORD_VERIFIER':
             challenge_res = srp.process_challenge(res['ChallengeParameters'])
             res = self.client.respond_to_auth_challenge(
-                ClientId = client_id,
                 ChallengeName = challenge,
-                ChallengeResponses = challenge_res)
-            if res.get('ChallengeName') == 'NEW_PASSWORD_REQUIRED':
-                raise PermissionError('Change password before authenticating')
+                ChallengeResponses = challenge_res,
+                ClientId = client_id,
+            )
+            challenge = res.get('ChallengeName')
+            if challenge == 'NEW_PASSWORD_REQUIRED':
+                if new_password is None:
+                    raise PermissionError('New Password Required')
+                session = res['Session']
+                challenge_res = {
+                    'NEW_PASSWORD': new_password,
+                    'USERNAME': username,
+                }
+                res = self.client.respond_to_auth_challenge(
+                    ChallengeName = challenge,
+                    ChallengeResponses = challenge_res,
+                    ClientId = client_id,
+                    Session = session,
+                )
             return res['AuthenticationResult']
         else:
             raise NotImplementedError(f'The challenge "{challenge}" is not supported')
