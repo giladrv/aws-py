@@ -1,7 +1,7 @@
 # Standard
 from enum import Enum
 import os
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, Iterable, List
 # External
 import boto3
 from botocore.client import Config
@@ -82,6 +82,29 @@ class S3():
                 break
         return count, size
 
+    def delete_keys(self, keys: Iterable[str]):
+        kwargs = {
+            'Bucket': self.bucket,
+        }
+        deleted = []
+        failed = []
+        for i in range(0, len(keys), 1000):
+            kwargs['Delete']['Objects'] = [ { 'Key': key } for key in keys[i:i+1000] ]
+            res = self.client.delete_objects(**kwargs)
+            deleted.extend(res.get('Deleted', []))
+            failed.extend(res.get('Errors', []))
+        return deleted, failed
+
+    def delete_prefix(self, prefix: str):
+        deleted = []
+        failed = []
+        def action(objs: Iterable[dict]):
+            b_del, b_fail = self.delete_keys([ obj['Key'] for obj in objs ])
+            deleted.extend(b_del)
+            failed.extend(b_fail)
+        self.iterate_objects(prefix = prefix, batch_action = action)
+        return deleted, failed
+
     def download(self, key: str,
             bucket: str = None,
             filepath: str = None):
@@ -143,7 +166,8 @@ class S3():
             bucket: str = None,
             requester: bool = None,
             extra_kwargs: dict = None,
-            object_map: Callable = None):
+            object_map: Callable = None,
+            batch_action: Callable = None):
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
         }
@@ -155,6 +179,8 @@ class S3():
         while True:
             res = self.client.list_objects_v2(**kwargs)
             if res['KeyCount'] > 0:
+                if batch_action is not None:
+                    batch_action(res['Contents'])
                 if object_map is None:
                     for obj in res['Contents']:
                         yield obj
