@@ -1,4 +1,5 @@
 # Standard
+from collections import deque
 from enum import Enum
 import os
 from typing import Any, Callable, Dict, Iterable, List
@@ -21,6 +22,9 @@ class StorageClass(Enum):
     GLR = 'Glacier'
 
 SCALE_PREFIX = [ '', 'K', 'M', 'G', 'T', 'P', 'E', 'Z' ]
+
+def exhaust(generator):
+    deque(generator, maxlen = 0)
 
 def hsize(size, decimals: int = 1, suffix: str = 'B'):
     scale = 0
@@ -85,6 +89,7 @@ class S3():
     def delete_keys(self, keys: Iterable[str]):
         kwargs = {
             'Bucket': self.bucket,
+            'Delete': {},
         }
         deleted = []
         failed = []
@@ -102,7 +107,7 @@ class S3():
             b_del, b_fail = self.delete_keys([ obj['Key'] for obj in objs ])
             deleted.extend(b_del)
             failed.extend(b_fail)
-        self.iterate_objects(prefix = prefix, batch_action = action)
+        exhaust(self.iterate_objects(prefix = prefix, batch_action = action))
         return deleted, failed
 
     def download(self, key: str,
