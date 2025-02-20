@@ -62,6 +62,19 @@ class S3():
             if self.requester == True:
                 kwargs['RequestPayer'] = 'requester'
 
+    def copy(self, key: str, new_key: str,
+            dst_bucket: str = None,
+            src_bucket: str = None):
+        kwargs = {
+            'Bucket': self.get_request_bucket(dst_bucket),
+            'CopySource': {
+                'Bucket': self.get_request_bucket(src_bucket),
+                'Key': key,
+            },
+            'Key': new_key,
+        }
+        return self.client.copy_object(**kwargs)
+    
     def count_objects(self, prefix: str,
             bucket: str = None,
             requester: bool = None,
@@ -86,9 +99,9 @@ class S3():
                 break
         return count, size
 
-    def delete_keys(self, keys: Iterable[str]):
+    def delete_keys(self, keys: Iterable[str], bucket: str = None):
         kwargs = {
-            'Bucket': self.bucket,
+            'Bucket': self.get_request_bucket(bucket),
             'Delete': {},
         }
         deleted = []
@@ -251,6 +264,12 @@ class S3():
             'Body': body,
         }
         self.client.put_object(**kwargs)
+
+    def rename(self, key: str, new_key: str,
+            dst_bucket: str = None,
+            src_bucket: str = None):
+        self.copy(key, new_key, dst_bucket = dst_bucket, src_bucket = src_bucket)
+        self.delete_keys([ key ], bucket = src_bucket)
 
     def restore_object(self, key: str,
             bucket: str = None,
