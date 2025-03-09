@@ -216,6 +216,19 @@ class COG():
             if kwargs['NextToken'] is None:
                 return None
     
+    def list_users(self, user_pool: str):
+        kwargs = {
+            'UserPoolId': user_pool,
+            'Limit': 60,
+        }
+        while True:
+            res = self.client.list_users(**kwargs)
+            for user in res['Users']:
+                yield user
+            if 'PaginationToken' not in res:
+                break
+            kwargs['PaginationToken'] = res['PaginationToken']
+
     def resend_confirmation(self, client_id: str, username: str):
         kwargs = {
             'ClientId': client_id,
