@@ -183,7 +183,7 @@ class COG():
             'UserAttributes': attributes,
         }
         if meta is not None:
-            kwargs['ClientMetadata'] = meta
+            kwargs['ClientMetadata'] = { k: str(v) for k, v in meta.items() }
         return self.client.admin_create_user(**kwargs)['User']
     
     def delete_user(self, user_pool: str, user_name: str):
