@@ -171,14 +171,20 @@ class COG():
             Username = name,
             ConfirmationCode = code)
 
-    def create_user(self, user_pool: str, user_name: str, email: str, custom: Dict[str, Any] = None):
+    def create_user(self, user_pool: str, user_name: str, email: str,
+            custom: Dict[str, Any] = None,
+            meta: Dict[str, Any] = None):
         attributes = [ { 'Name': 'email', 'Value': email } ]
         if custom is not None:
             attributes.extend(custom_write(custom))
-        return self.client.admin_create_user(
-            UserPoolId = user_pool,
-            Username = user_name,
-            UserAttributes = attributes)['User']
+        kwargs = {
+            'UserPoolId': user_pool,
+            'Username': user_name,
+            'UserAttributes': attributes,
+        }
+        if meta is not None:
+            kwargs['ClientMetadata'] = meta
+        return self.client.admin_create_user(**kwargs)['User']
     
     def delete_user(self, user_pool: str, user_name: str):
         self.client.admin_delete_user(
