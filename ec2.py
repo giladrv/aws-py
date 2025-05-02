@@ -37,3 +37,8 @@ class EC2():
             filters = [{ 'Name': 'vpc-id', 'Values': [ self.get_default_vpc_id() ] }]
             self.default_subnets = self.client.describe_subnets(Filters = filters)['Subnets']
         return [ subnet['SubnetId'] for subnet in self.default_subnets ]
+
+    def stop_instances(self, ids: str | List[str]):
+        if isinstance(ids, str):
+            ids = [ ids ]
+        self.client.stop_instances(InstanceIds = ids)

@@ -24,6 +24,9 @@ class Capability(Enum):
 def extract_outputs(stack_details: dict):
     return { o['OutputKey']: o['OutputValue'] for o in stack_details['Outputs'] }
 
+def extract_parameters(stack_details: dict):
+    return { p['ParameterKey']: p['ParameterValue'] for p in stack_details['Parameters'] }
+
 def get_stack_events_url(region: str, stack_id: str):
     return EVENTS_URL.format(
         region = region,
