@@ -32,8 +32,8 @@ class SQS():
             'MaxNumberOfMessages': max_num,
             'WaitTimeSeconds': wait_time,
         }
-        response = self.client.receive_message(**kwargs)
-        return response['Messages']
+        response: dict = self.client.receive_message(**kwargs)
+        return response.get('Messages', [])
 
     def send(self, message: str, deduplication: str, group: str):
         kwargs = {
