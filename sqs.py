@@ -1,5 +1,5 @@
 # Standard
-import json
+from typing import List
 # External
 import boto3
 
@@ -26,7 +26,7 @@ class SQS():
         }
         self.client.delete_message(**kwargs)
 
-    def receive(self, max_num: int = 1, wait_time: int = 0):
+    def receive(self, max_num: int = 1, wait_time: int = 0) -> List[dict]:
         kwargs = {
             'QueueUrl': self.url,
             'MaxNumberOfMessages': max_num,
