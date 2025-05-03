@@ -38,6 +38,15 @@ class EC2():
             self.default_subnets = self.client.describe_subnets(Filters = filters)['Subnets']
         return [ subnet['SubnetId'] for subnet in self.default_subnets ]
 
+    def start_instances(self, ids: str | List[str]):
+        if isinstance(ids, str):
+            ids = [ ids ]
+        res = self.client.start_instances(InstanceIds = ids)
+        return { instance['InstanceId']: {
+            'current': instance['CurrentState']['Name'],
+            'previous': instance['PreviousState']['Name'],
+        } for instance in res.get('StartingInstances', []) }
+
     def stop_instances(self, ids: str | List[str]):
         if isinstance(ids, str):
             ids = [ ids ]
