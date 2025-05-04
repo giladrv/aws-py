@@ -47,7 +47,11 @@ class EC2():
             'previous': instance['PreviousState']['Name'],
         } for instance in res.get('StartingInstances', []) }
 
-    def stop_instances(self, ids: str | List[str]):
+    def stop_instances(self, ids: str | List[str], hibernate: bool = False):
         if isinstance(ids, str):
             ids = [ ids ]
-        self.client.stop_instances(InstanceIds = ids)
+        kwargs = {
+            'InstanceIds': ids,
+            'Hibernate': hibernate,
+        }
+        self.client.stop_instances(**kwargs)
