@@ -1,14 +1,34 @@
 # Standard
 import logging
 from logging import Handler
-from queue import Queue
-from threading import Thread
+from queue import Empty, Queue
+from threading import Lock, Thread
 import time
 # External
 import boto3
 from botocore.exceptions import ClientError
 
 CLIENT_NAME = 'logs'
+
+MAX_BATCH_SIZE = 1048576
+MAX_MESSAGES = 10000
+EXTRA_BYTES_PER_MESSAGE = 26
+MAX_MESSAGE_SIZE = 262144 - EXTRA_BYTES_PER_MESSAGE # MAX_BATCH_SIZE - EXTRA_BYTES_PER_MESSAGE
+
+def truncate(message: str, max_bytes: int, encoding: str = 'utf-8', prefix = '') -> str:
+    encoded = message.encode(encoding = encoding)
+    msg_size = len(encoded)
+    if len(encoded) <= max_bytes:
+        return message, msg_size
+    encoded = prefix.encode(encoding = encoding) + encoded
+    truncated = encoded[:max_bytes]
+    msg_size = max_bytes
+    while True:
+        try:
+            return truncated.decode('utf-8'), msg_size
+        except UnicodeDecodeError:
+            truncated = truncated[:-1]
+            msg_size -= 1
 
 class CWL():
 
@@ -26,32 +46,44 @@ class CloudWatchHandler(Handler):
             client = None,
             level: int = logging.INFO,
             name = 'CloudWatchHandler',
-            batch_interval: int = 5,
-            max_batch_size: int = 10,
+            batch_wait: int = 5,
         ):
         super().__init__(level)
         self.client = client or boto3.client(CLIENT_NAME)
         self.log_group = log_group
         self.log_stream = log_stream
-        self.batch_interval = batch_interval
-        self.max_batch_size = max_batch_size
+        self.batch = []
+        self.batch_lock = Lock()
+        self.batch_size = 0
+        self.batch_wait = batch_wait
         self.queue = Queue()
-        self._sequence_token = None
-        self._ensure_resources()
-        thread = Thread(
-            target = self._publish,
+        self.ensure_resources()
+        self.thread = Thread(
+            target = self.monitor_queue,
             daemon = True,
             name = f'cwpub-{name}'
         )
-        thread.start()
+        self.thread.start()
 
     def emit(self, record):
-        self.queue.put({
-            'message': self.format(record),
-            'timestamp': int(record.created * 1000),
-        })
+        msg, sz = truncate(
+            self.format(record), 
+            max_bytes = MAX_MESSAGE_SIZE,
+            prefix = '<TRUNCATED>')
+        ts = int(record.created * 1000)
+        sz += EXTRA_BYTES_PER_MESSAGE
+        with self.batch_lock:
+            if len(self.batch) >= MAX_MESSAGES or self.batch_size + sz > MAX_BATCH_SIZE:
+                self.queue.put(self.batch)
+                self.batch = []
+                self.batch_size = 0
+            self.batch.append({
+                'message': msg,
+                'timestamp': ts,
+            })
+            self.batch_size += sz
 
-    def _ensure_resources(self):
+    def ensure_resources(self):
         try:
             self.client.create_log_group(logGroupName = self.log_group)
         except ClientError as e:
@@ -66,20 +98,35 @@ class CloudWatchHandler(Handler):
             if e.response['Error']['Code'] != 'ResourceAlreadyExistsException':
                 raise
 
-    def _publish(self):
+    def flush(self):
+        with self.batch_lock:
+            if self.batch:
+                self.queue.put(self.batch)
+                self.batch = []
+                self.batch_size = 0
         while True:
-            time.sleep(self.batch_interval)
-            events = []
-            while not self.queue.empty() and len(events) < self.max_batch_size:
-                events.append(self.queue.get())
-            if len(events) == 0:
+            try:
+                events = self.queue.get_nowait()
+            except Empty as e:
+                break
+            self.put_batch(events)
+
+    def monitor_queue(self):
+        while True:
+            time.sleep(self.batch_wait)
+            try:
+                events = self.queue.get_nowait()
+            except Empty as e:
                 continue
-            kwargs = {
-                'logGroupName': self.log_group,
-                'logStreamName': self.log_stream,
-                'logEvents': events,
-            }
-            if self._sequence_token:
-                kwargs['sequenceToken'] = self._sequence_token
+            self.put_batch(events)
+
+    def put_batch(self, events):
+        kwargs = {
+            'logGroupName': self.log_group,
+            'logStreamName': self.log_stream,
+            'logEvents': events,
+        }
+        try:
             res = self.client.put_log_events(**kwargs)
-            self._sequence_token = res['nextSequenceToken']
+        except Exception as e:
+            logging.error(f'failed to publish logs: {e}')
