@@ -71,12 +71,8 @@ class CloudWatchHandler(Handler):
             max_bytes = MAX_MESSAGE_SIZE,
             prefix = '<TRUNCATED>')
         ts = int(record.created * 1000)
-        sz += EXTRA_BYTES_PER_MESSAGE
+        self.flush_batch(sz + EXTRA_BYTES_PER_MESSAGE)
         with self.batch_lock:
-            if len(self.batch) >= MAX_MESSAGES or self.batch_size + sz > MAX_BATCH_SIZE:
-                self.queue.put(self.batch)
-                self.batch = []
-                self.batch_size = 0
             self.batch.append({
                 'message': msg,
                 'timestamp': ts,
@@ -99,11 +95,7 @@ class CloudWatchHandler(Handler):
                 raise
 
     def flush(self):
-        with self.batch_lock:
-            if self.batch:
-                self.queue.put(self.batch)
-                self.batch = []
-                self.batch_size = 0
+        self.flush_batch(0)
         while True:
             try:
                 events = self.queue.get_nowait()
@@ -111,9 +103,17 @@ class CloudWatchHandler(Handler):
                 break
             self.put_batch(events)
 
+    def flush_batch(self, sz: int):
+        with self.batch_lock:
+            if self.batch and (sz == 0 or len(self.batch) >= MAX_MESSAGES or self.batch_size + sz >= MAX_BATCH_SIZE):
+                self.queue.put(self.batch)
+                self.batch = []
+                self.batch_size = 0
+
     def monitor_queue(self):
         while True:
             time.sleep(self.batch_wait)
+            self.flush_batch(0)
             try:
                 events = self.queue.get_nowait()
             except Empty as e:
