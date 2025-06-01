@@ -2,6 +2,8 @@
 from collections import deque
 from enum import Enum
 import os
+from queue import Queue, Empty as QEmpty
+from threading import Thread
 from typing import Any, Callable, Dict, Iterable, List
 # External
 import boto3
@@ -125,10 +127,14 @@ class S3():
 
     def download(self, key: str,
             bucket: str = None,
-            filepath: str = None):
+            filepath: str = None,
+            verbosity: int = 0,
+        ):
         if filepath is None:
             filepath = key.split('/')[-1]
         else:
+            if filepath.endswith('/'):
+                filepath = filepath + key.split('/')[-1]
             dirname = os.path.dirname(filepath)
             if dirname != '':
                 os.makedirs(dirname, exist_ok = True)
@@ -137,7 +143,44 @@ class S3():
             'Key': key,
             'Filename': filepath,
         }
+        if verbosity == 1:
+            print(f'Downloading\t{key}')
+        elif verbosity == 2:
+            print(f'Downloading\ts3://{kwargs["Bucket"]}/{key}\n\t=>\t{filepath}')
         self.client.download_file(**kwargs)
+
+    def download_many(self, params_list: Iterable[str | dict],
+            thread_count: int = 4,
+            verbosity: int = 0):
+        # Validate thread count
+        assert thread_count >= 1, 'Thread count must be greater than or equal to 1'
+        assert thread_count <= 8, 'Thread count must be less than or equal to 8'
+        # Put params_list into a queue
+        params_queue = Queue()
+        for params in params_list:
+            params_queue.put(params)
+        # Define the worker function for downloading
+        def download_worker():
+            while True:
+                try:
+                    kwargs = params_queue.get_nowait()
+                    if isinstance(kwargs, str):
+                        kwargs = { 'key': kwargs }
+                    elif not isinstance(kwargs, dict):
+                        raise ValueError('Params must be a string or a dict with "key" and optional "bucket" and "filepath"')
+                    kwargs['verbosity'] = verbosity
+                    self.download(**kwargs)
+                except QEmpty:
+                    break
+        # Create and start threads
+        threads: List[Thread] = []
+        for _ in range(thread_count):
+            thread = Thread(target = download_worker)
+            thread.start()
+            threads.append(thread)
+        # Wait for all threads to finish
+        for thread in threads:
+            thread.join()
 
     def get_object(self, key: str,
             bucket: str = None,
