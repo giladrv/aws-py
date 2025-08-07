@@ -36,12 +36,14 @@ class CFN():
 
     def __init__(self, client = None,
             capability_named_iam: bool = None,
+            capability_auto_expand: bool = False,
             wait_delay: float = 10):
         if client is not None:
             self.client = client
         else:
             self.client = boto3.client(CLIENT_NAME)
         self.capability_named_iam = capability_named_iam
+        self.capability_auto_expand = capability_auto_expand
         self.wait_delay = wait_delay
 
     def describe_events(self, stack: str):
@@ -91,6 +93,8 @@ class CFN():
             kwargs["Capabilities"].append(Capability.NamedIAM.value)
         elif self.capability_named_iam == False:
             kwargs["Capabilities"].append(Capability.IAM.value)
+        if self.capability_auto_expand == True:
+            kwargs["Capabilities"].append(Capability.AutoExpand.value)
         try:
             res = self.client.update_stack(**kwargs)
             return res["StackId"]
