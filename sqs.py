@@ -1,4 +1,5 @@
 # Standard
+import json
 from typing import List
 # External
 import boto3
@@ -44,3 +45,6 @@ class SQS():
         }
         response = self.client.send_message(**kwargs)
         return response['MessageId']
+
+    def send_json(self, deduplication: str, group: str, payload: dict):
+        return self.send(json.dumps(payload, default = str), deduplication, group)
