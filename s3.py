@@ -300,12 +300,15 @@ class S3():
         }
 
     def put(self, key: str, body: str,
-            bucket: str = None):
+            bucket: str = None,
+            content_type: str = None):
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
             'Body': body,
         }
+        if content_type is not None:
+            kwargs['ContentType'] = content_type
         self.client.put_object(**kwargs)
 
     def rename(self, key: str, new_key: str,
