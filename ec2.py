@@ -16,6 +16,16 @@ class EC2():
         self.default_subnets: dict = None
         self.default_vpc: dict = None
 
+    def describe_instance(self, id: str) -> dict:
+        res = self.client.describe_instances(InstanceIds = [ id ])
+        reservations = res.get('Reservations', [])
+        if len(reservations) == 0:
+            raise Exception(f'Instance {id} not found')
+        instances = reservations[0].get('Instances', [])
+        if len(instances) == 0:
+            raise Exception(f'Instance {id} not found')
+        return instances[0]
+
     def get_default_vpc_id(self) -> str:
         if self.default_vpc is None:
             filters = [{ 'Name': 'is-default', 'Values': [ 'true' ] }]
