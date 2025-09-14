@@ -235,6 +235,14 @@ class COG():
                 break
             kwargs['PaginationToken'] = res['PaginationToken']
 
+    def refresh_token(self, client_id: str, refresh_token: str):
+        kwargs = {
+            'RefreshToken': refresh_token,
+            'ClientId': client_id,
+        }
+        res = self.client.get_tokens_from_refresh_token(**kwargs)
+        return res['AuthenticationResult']
+
     def resend_confirmation(self, client_id: str, username: str):
         kwargs = {
             'ClientId': client_id,
