@@ -148,6 +148,7 @@ class S3():
         elif verbosity == 2:
             print(f'Downloading\ts3://{kwargs["Bucket"]}/{key}\n\t=>\t{filepath}')
         self.client.download_file(**kwargs)
+        return filepath
 
     def download_many(self, params_list: Iterable[str | dict],
             thread_count: int = 4,
