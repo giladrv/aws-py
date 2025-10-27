@@ -129,6 +129,7 @@ class S3():
             bucket: str = None,
             filepath: str = None,
             verbosity: int = 0,
+            callback: Callable[[int, int], None] = None,
         ):
         if filepath is None:
             filepath = key.split('/')[-1]
@@ -147,6 +148,11 @@ class S3():
             print(f'Downloading\t{key}')
         elif verbosity == 2:
             print(f'Downloading\ts3://{kwargs["Bucket"]}/{key}\n\t=>\t{filepath}')
+        if callback is not None:
+            total_size = self.head_object(key)['ContentLength']
+            def _callback(bytes_amount):
+                callback(total_size, bytes_amount)
+            kwargs['Callback'] = _callback
         self.client.download_file(**kwargs)
         return filepath
 
@@ -343,7 +349,8 @@ class S3():
             bucket: str = None,
             requester: bool = None,
             meta: Dict[str, str] = None,
-            content_type: str = None):
+            content_type: str = None,
+            callback: Callable[[int], None] = None):
         extra_args = {}
         if meta is not None:
             extra_args['Metadata'] = meta
@@ -355,5 +362,7 @@ class S3():
             'Filename': filename,
             'ExtraArgs': extra_args
         }
+        if callback is not None:
+            kwargs['Callback'] = callback
         self.add_request_payer(extra_args, requester)
         return self.client.upload_file(**kwargs)
