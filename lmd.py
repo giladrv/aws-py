@@ -3,14 +3,19 @@ from enum import Enum
 import json
 import os
 import shutil
+from urllib.parse import quote, urlencode, urlunparse
 # External
 import boto3
 from botocore.config import Config
 # Internal
 from . import enval
 
-FUNCTION_URL = 'https://{region}.console.aws.amazon.com/lambda/home?region={region}#/functions/{name}'
-LOG_GROUP_URL = 'https://{region}.console.aws.amazon.com/cloudwatch/home?region={region}#logsV2:log-groups/log-group'
+PROTOCOL = 'https'
+DOMAIN = 'console.aws.amazon.com'
+LAMBDA_PATH = '/lambda/home'
+CLOUDWATCH_PATH = '/cloudwatch/home'
+
+LOG_GROUPS_FRAGMENT = 'logsV2:log-groups/log-group'
 
 DEF_KWARGS = {
     'config': Config(retries = {'total_max_attempts': 1}),
@@ -48,21 +53,41 @@ def clear_tmp(verbose = False):
         print('/tmp', tmp_size)
 
 def encode_fragment(fragment: str):
-    from urllib.parse import quote
-    return quote(fragment, safe = '').replace('%', '$25')
+    return fragment.replace('%', '$25').replace('?', '$3F').replace('=', '$3D')
+
+def full_quote(string: str):
+    return quote(string, safe = '')
+
+def get_console_url(path: str, fragment: str, region: str = None):
+    region = region or os.environ['AWS_REGION']
+    domain = f'{region}.{DOMAIN}'
+    matrix = ''
+    query = urlencode({ 'region': region })
+    fragment = encode_fragment(fragment)
+    return urlunparse((PROTOCOL, domain, path, matrix, query, fragment))
 
 def get_function_url(name = None, region = None):
     if name is None:
         name = os.environ['AWS_LAMBDA_FUNCTION_NAME']
-    if region is None:
-        region = os.environ['AWS_REGION']
-    return FUNCTION_URL.format(region = region, name = name)
+    fragment = f'/functions/{full_quote(name)}'
+    return get_console_url(LAMBDA_PATH, fragment)
+
+def get_log_group_name(fun_name: str = None):
+    if fun_name is None:
+        fun_name = os.environ['AWS_LAMBDA_FUNCTION_NAME']
+    return f'/aws/lambda/{fun_name}'
+
+def get_log_group_search_url(fun_name: str, pattern: str):
+    log_group = full_quote(get_log_group_name(fun_name))
+    log_stream = f'filterPattern={full_quote(pattern)}'
+    fragment = f'{LOG_GROUPS_FRAGMENT}/{log_group}/log-events?{log_stream}'
+    return get_console_url(CLOUDWATCH_PATH, fragment)
 
 def get_log_stream_url():
-    base_url = LOG_GROUP_URL.format(region = os.environ['AWS_REGION'])
-    log_group = encode_fragment(os.environ['AWS_LAMBDA_LOG_GROUP_NAME'])
-    log_stream = encode_fragment(os.environ['AWS_LAMBDA_LOG_STREAM_NAME'])
-    return f'{base_url}/{log_group}/log-events/{log_stream}'
+    log_group = full_quote(get_log_group_name())
+    log_stream = full_quote(os.environ['AWS_LAMBDA_LOG_STREAM_NAME'])
+    fragment = f'{LOG_GROUPS_FRAGMENT}/{log_group}/log-events/{log_stream}'
+    return get_console_url(CLOUDWATCH_PATH, fragment)
 
 def out_raw(response):
     return response
