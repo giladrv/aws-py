@@ -10,7 +10,6 @@ from botocore.exceptions import ClientError
 
 EVENTS_URL = 'https://{region}.console.aws.amazon.com/cloudformation/home?region={region}#/stacks/events?stackId={stack}'
 
-INVOKE_DEST_YML = "{ Destination: !Sub '{arn}' }"
 LAYER_PREFIX = "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer"
 NO_VALUE = "!Ref AWS::NoValue"
 
