@@ -91,7 +91,11 @@ class TableWithUniques:
             Key = self._id_key(id_val),
             ConsistentRead = consistent
         )
-        return _unmarshal(r.get('Item'))
+        attrs = _unmarshal(r.get('Item'))
+        attrs.pop(PK, None)
+        attrs.pop(SK, None)
+        attrs[self.id_key] = id_val
+        return attrs
 
     def get_uq(self, uq_key: str, uq_val: str):
         r = self.ddb.query(
@@ -104,12 +108,7 @@ class TableWithUniques:
         )
         uq_item = _unmarshal(r.get('Items')[0])
         id_val = uq_item[SK].split('#', 1)[1]
-        item = self.ddb.get_item(
-            TableName = self.name,
-            Key = self._id_key(id_val),
-            ConsistentRead = True,
-        )
-        return _unmarshal(item.get('Item'))
+        return self.get(id_val)
 
     def put(self, attrs: Dict[str, Any]):
         put_args = {
