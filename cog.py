@@ -166,10 +166,11 @@ class COG():
             Password = password)
 
     def confirm_user(self, client_id: str, name: str, code: str):
-        self.client.confirm_sign_up(
+        res = self.client.confirm_sign_up(
             ClientId = client_id,
             Username = name,
             ConfirmationCode = code)
+        return res['Session']
 
     def create_user(self, user_pool: str, user_name: str, email: str,
             custom: Dict[str, Any] = None,
