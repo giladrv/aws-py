@@ -16,6 +16,28 @@ COG_ACTIONS = [
     'signup',
 ]
 
+COG_ATTRIBUTES = set([
+    'address',
+    'birthdate',
+    'email',
+    'email_verified',
+    'family_name',
+    'gender',
+    'given_name',
+    'locale',
+    'middle_name',
+    'name',
+    'nickname',
+    'phone_number',
+    'phone_number_verified',
+    'picture',
+    'preferred_username',
+    'profile',
+    'updated_at',
+    'website',
+    'zoneinfo',
+])
+
 CLIENT_NAME = 'cognito-idp'
 
 N_HEX = 'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1' \
@@ -291,12 +313,17 @@ class COG():
             'Password': password,
             'UserAttributes': [ { 'Name': 'email', 'Value': email } ],
         }
-        res = self.client.sign_up(**kwargs)
-        return res['UserConfirmed']
+        return self.client.sign_up(**kwargs)
 
-    def update_custom_attributes(self, pool_id: str, username: str, attributes: Dict[str, str]):
+    def update_attributes(self, pool_id: str, username: str, attributes: Dict[str, str]):
         kwargs = {
-            'UserAttributes': custom_write(attributes),
+            'UserAttributes': [
+                {
+                    'Name': k if k in COG_ATTRIBUTES else f'custom:{k}',
+                    'Value': str(v)
+                }
+                for k, v in attributes.items()
+            ],
             'Username': username,
             'UserPoolId': pool_id,
         }
