@@ -40,24 +40,14 @@ class TableWithUniques:
         self.id_key = id_key
         self.uq_keys = uq_keys or []
 
-    def _id_pk(self, id_val: str):
-        return f'{self.id_key.upper()}#{id_val}'
-
     def _id_key(self, id_val: str):
         return {
             PK: _serialize(self._id_pk(id_val)),
             SK: _serialize(self.id_key.upper())
         }
 
-    def _uq_pk(self, uq_key: str, uq_val: str):
-        return f'{uq_key.upper()}#{uq_val}'
-
-    def _uq_item(self, id_val: str, uq_key: str, uq_val: str):
-        return {
-            PK: _serialize(self._uq_pk(uq_key, uq_val)),
-            SK: _serialize(SK),
-            self.id_key: _serialize(id_val),
-        }
+    def _id_pk(self, id_val: str):
+        return f'{self.id_key.upper()}#{id_val}'
 
     def _item(self, attrs: Dict[str, Any]):
         id_val = attrs[self.id_key]
@@ -71,6 +61,20 @@ class TableWithUniques:
         }
         return _serialize(body)['M']
 
+    def _uq_key(self, uq_key: str, uq_val: str):
+        return {
+            PK: _serialize(self._uq_pk(uq_key, uq_val)),
+            SK: _serialize(SK),
+        }
+
+    def _uq_item(self, id_val: str, uq_key: str, uq_val: str):
+        return uq_key | {
+            self.id_key: _serialize(id_val),
+        }
+
+    def _uq_pk(self, uq_key: str, uq_val: str):
+        return f'{uq_key.upper()}#{uq_val}'
+
     def delete(self, attrs: dict):
         del_args = {
             'TableName': self.name,
@@ -79,7 +83,7 @@ class TableWithUniques:
         id_val = attrs[self.id_key]
         items = [
             self._id_key(id_val),
-            *[ self._uq_item(id_val, uq_key, attrs[uq_key]) for uq_key in self.uq_keys ]
+            *[ self._uq_key(uq_key, attrs[uq_key]) for uq_key in self.uq_keys ]
         ]
         res = self.ddb.transact_write_items(
             TransactItems = [ { 'Delete': del_args | { 'Key': item } } for item in items ]
