@@ -55,7 +55,8 @@ class TableWithUniques:
     def _uq_item(self, id_val: str, uq_key: str, uq_val: str):
         return {
             PK: _serialize(self._uq_pk(uq_key, uq_val)),
-            SK: _serialize(self._id_pk(id_val))
+            SK: _serialize(SK),
+            self.id_key: _serialize(id_val),
         }
 
     def _item(self, attrs: Dict[str, Any]):
@@ -107,7 +108,7 @@ class TableWithUniques:
             Limit = 1,
         )
         uq_item = _unmarshal(r.get('Items')[0])
-        id_val = uq_item[SK].split('#', 1)[1]
+        id_val = uq_item[self.id_key]
         return self.get(id_val)
 
     def put(self, attrs: Dict[str, Any]):
