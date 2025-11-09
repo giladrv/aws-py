@@ -280,6 +280,14 @@ class COG():
                 break
             kwargs['PaginationToken'] = res['PaginationToken']
 
+    def list_users_by_email(self, user_pool: str, email: str, limit: int = 10):
+        res = self.client.list_users(
+            UserPoolId = user_pool,
+            Filter = f'email = "{email}"',
+            Limit = limit,
+        )
+        return res.get('Users') or []
+
     def refresh_token(self, client_id: str, refresh_token: str):
         kwargs = {
             'RefreshToken': refresh_token,
