@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import os
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
 # External
 import boto3
 
@@ -267,7 +267,7 @@ class COG():
             if kwargs['NextToken'] is None:
                 return None
     
-    def list_users(self, user_pool: str):
+    def list_users(self, user_pool: str) -> Iterator[dict]:
         kwargs = {
             'UserPoolId': user_pool,
             'Limit': 60,
@@ -280,13 +280,19 @@ class COG():
                 break
             kwargs['PaginationToken'] = res['PaginationToken']
 
-    def list_users_by_email(self, user_pool: str, email: str, limit: int = 10):
-        res = self.client.list_users(
-            UserPoolId = user_pool,
-            Filter = f'email = "{email}"',
-            Limit = limit,
-        )
-        return res.get('Users') or []
+    def list_users_by_email(self, user_pool: str, email: str) -> Iterator[dict]:
+        kwargs = {
+            'UserPoolId': user_pool,
+            'Filter': f'email = "{email}"',
+            'Limit': 60,
+        }
+        while True:
+            res = self.client.list_users(**kwargs)
+            for user in res['Users']:
+                yield user
+            if 'PaginationToken' not in res:
+                break
+            kwargs['PaginationToken'] = res['PaginationToken']
 
     def refresh_token(self, client_id: str, refresh_token: str):
         kwargs = {
