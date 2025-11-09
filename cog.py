@@ -180,6 +180,29 @@ class COG():
         else:
             self.client = boto3.client(CLIENT_NAME)
 
+    def admin_get_user(self, user_pool: str, user_name: str):
+        try:
+            return self.client.admin_get_user(
+                UserPoolId = user_pool,
+                Username = user_name)
+        except self.client.exceptions.UserNotFoundException:
+            return None
+
+    def admin_link_idp(self, pool: str, cog_user: str,
+            idp_name: str, idp_user: str):
+        return self.client.admin_link_provider_for_user(
+            UserPoolId = pool,
+            DestinationUser = {
+                'ProviderName': 'Cognito',
+                'ProviderAttributeValue': cog_user,
+            },
+            SourceUser = {
+                'ProviderName': idp_name,
+                'ProviderAttributeName': 'Cognito_Subject',
+                'ProviderAttributeValue': idp_user
+            }
+        )
+
     def confirm_forgot(self, client_id: str, name: str, code: str, password: str):
         self.client.confirm_forgot_password(
             ClientId = client_id,
