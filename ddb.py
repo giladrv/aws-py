@@ -68,7 +68,7 @@ class TableWithUniques:
         }
 
     def _uq_item(self, id_val: str, uq_key: str, uq_val: str):
-        return uq_key | {
+        return self._uq_key(uq_key, uq_val) | {
             self.id_key: _serialize(id_val),
         }
 
