@@ -86,16 +86,19 @@ class TableWithUniques:
             *[ self._uq_key(uq_key, attrs[uq_key]) for uq_key in self.uq_keys ]
         ]
         res = self.ddb.transact_write_items(
-            TransactItems = [ { 'Delete': del_args | { 'Key': item } } for item in items ]
+            TransactItems = [ { 'Delete': del_args | { 'Key': item } } for item in items ],
+            ReturnConsumedCapacity = 'TOTAL',
         )
-        print('res', res)
+        print('DDB', res['ConsumedCapacity'])
 
     def get(self, id_val: str, consistent = True):
         r = self.ddb.get_item(
             TableName = self.name,
             Key = self._id_key(id_val),
-            ConsistentRead = consistent
+            ConsistentRead = consistent,
+            ReturnConsumedCapacity = 'TOTAL',
         )
+        print('DDB', r['ConsumedCapacity'])
         attrs = _unmarshal(r.get('Item'))
         attrs.pop(PK, None)
         attrs.pop(SK, None)
@@ -110,7 +113,9 @@ class TableWithUniques:
                 ':p': _serialize(self._uq_pk(uq_key, uq_val))
             },
             Limit = 1,
+            ReturnConsumedCapacity = 'TOTAL',
         )
+        print('DDB', r['ConsumedCapacity'])
         uq_item = _unmarshal(r.get('Items')[0])
         id_val = uq_item[self.id_key]
         return self.get(id_val)
@@ -126,9 +131,10 @@ class TableWithUniques:
             *[ self._uq_item(id_val, uq_key, attrs[uq_key]) for uq_key in self.uq_keys ]
         ]
         res = self.ddb.transact_write_items(
-            TransactItems = [ { 'Put': put_args | { 'Item': item } } for item in items ]
+            TransactItems = [ { 'Put': put_args | { 'Item': item } } for item in items ],
+            ReturnConsumedCapacity = 'TOTAL',
         )
-        print('res', res)
+        print('DDB', res['ConsumedCapacity'])
 
     def put_sk(self, id_val: str, sk: str, attrs: Dict[str, Any]):
         now = _now()
@@ -141,9 +147,10 @@ class TableWithUniques:
         }
         res = self.ddb.put_item(
             TableName = self.name,
-            Item = _serialize(body)['M']
+            Item = _serialize(body)['M'],
+            ReturnConsumedCapacity = 'TOTAL',
         )
-        print('res', res)
+        print('DDB', res['ConsumedCapacity'])
 
     def update(self, id_val: str, attrs: Dict[str, Any]):
         exclude = { PK, SK, self.id_key, 'created' }
@@ -158,42 +165,48 @@ class TableWithUniques:
             ExpressionAttributeNames = names,
             ExpressionAttributeValues = values,
             ConditionExpression = f'attribute_exists({PK})',
-            ReturnValues = 'UPDATED_OLD' # ALL_NEW, UPDATED_OLD, NONE, ALL_OLD
+            ReturnValues = 'UPDATED_OLD', # ALL_NEW, UPDATED_OLD, NONE, ALL_OLD
+            ReturnConsumedCapacity = 'TOTAL',
         )
-        print('res', res)
+        print('DDB', res['ConsumedCapacity'])
         return _unmarshal(res['Attributes'])
 
     def update_uq(self, id_val: str, uq_key: str, uq_new: str, uq_old: str):
-        tx = [
-            {
-                'Put': {
-                    'TableName': self.name,
-                    'Item': self._uq_item(id_val, uq_key, uq_new),
-                    'ConditionExpression': f'attribute_not_exists({PK})'
-                }
-            },
-            {
-                'Update': {
-                    'TableName': self.name,
-                    'Key': self._id_key(id_val),
-                    'UpdateExpression': f'SET #_{uq_key} = :_{uq_key}, #_updated = :_updated',
-                    'ExpressionAttributeNames': {
-                        f'#_{uq_key}': uq_key,
-                        '#_updated': 'updated'
-                    },
-                    'ExpressionAttributeValues': {
-                        f':_{uq_key}': _serialize(uq_new),
-                        ':_updated': _serialize(_now())
-                    },
-                    'ConditionExpression': f'attribute_exists({PK})'
-                }
-            },
-            {
-                'Delete': {
-                    'TableName': self.name,
-                    'Key': self._uq_item(id_val, uq_key, uq_old),
-                }
-            },
-        ]
-        res = self.ddb.transact_write_items(TransactItems = tx)
-        print('res', res)
+        put_new_value = {
+            'Put': {
+                'TableName': self.name,
+                'Item': self._uq_item(id_val, uq_key, uq_new),
+                'ConditionExpression': f'attribute_not_exists({PK})'
+            }
+        }
+        update_owner_item = {
+            'Update': {
+                'TableName': self.name,
+                'Key': self._id_key(id_val),
+                'UpdateExpression': f'SET #_{uq_key} = :_{uq_key}, #_updated = :_updated',
+                'ExpressionAttributeNames': {
+                    f'#_{uq_key}': uq_key,
+                    '#_updated': 'updated'
+                },
+                'ExpressionAttributeValues': {
+                    f':_{uq_key}': _serialize(uq_new),
+                    ':_updated': _serialize(_now())
+                },
+                'ConditionExpression': f'attribute_exists({PK})'
+            }
+        }
+        delete_old_value = {
+            'Delete': {
+                'TableName': self.name,
+                'Key': self._uq_item(id_val, uq_key, uq_old),
+            }
+        }
+        res = self.ddb.transact_write_items(
+            TransactItems = [
+                put_new_value,
+                update_owner_item,
+                delete_old_value
+            ],
+            ReturnConsumedCapacity = 'TOTAL',
+        )
+        print('DDB', res['ConsumedCapacity'])
