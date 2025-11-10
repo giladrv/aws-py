@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import os
 import re
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, List
 # External
 import boto3
 
@@ -40,6 +40,13 @@ COG_ATTRIBUTES = set([
 
 CLIENT_NAME = 'cognito-idp'
 
+IDP_MAP = {
+    'google': 'Google',
+    'facebook': 'Facebook',
+    'loginwithamazon': 'LoginWithAmazon',
+    'apple': 'SignInWithApple'
+}
+
 N_HEX = 'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1' \
       + '29024E088A67CC74020BBEA63B139B22514A08798E3404DD' \
       + 'EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245' \
@@ -61,6 +68,73 @@ G_HEX = '2' # https://github.com/aws/amazon-cognito-identity-js/blob/master/src/
 
 INFO_BITS = bytearray('Caldera Derived Key', 'utf-8')
 
+TRIGGER_SOURCES = {
+    'CreateAuthChallenge': [
+        'Authentication',
+    ],
+    'CustomEmailSender': [
+        'AccountTakeOverNotification',
+        'AdminCreateUser',
+        'Authentication',
+        'ForgotPassword',
+        'SignUp',
+        'UpdateUserAttribute',
+        'VerifyUserAttribute',
+    ],
+    'CustomMessage': [
+        'AdminCreateUser',
+        'Authentication',
+        'ForgotPassword',
+        'ResendCode',
+        'SignUp',
+        'UpdateUserAttribute',
+        'VerifyUserAttribute',
+    ],
+    'CustomSMSender': [
+        'AdminCreateUser',
+        'Authentication',
+        'ForgotPassword',
+        'SignUp',
+        'UpdateUserAttribute',
+        'VerifyUserAttribute',
+    ],
+    'DefineAuthChallenge': [
+        'Authentication',
+    ],
+    'PreAuthentication': [
+        'Authentication',
+    ],
+    'PreSignUp': [
+        'AdminCreateUser',
+        'ExternalProvider',
+        'SignUp',
+    ],
+    'PostAuthentication': [
+        'Authentication',
+    ],
+    'PostConfirmation': [
+        'ConfirmForgotPassword',
+        'ConfirmSignUp',
+    ],
+    'TokenGeneration': [
+        'AuthenticateDevice',
+        'Authentication',
+        'HostedAuth',
+        'NewPasswordChallenge',
+        'RefreshTokens',
+    ],
+    'UserMigration': [
+        'Authentication',
+        'ForgotPassword',
+    ],
+    'VerifyAuthChallenge': [
+        'Authentication',
+    ],
+    'VerifyAuthChallengeResponse': [
+        'Authentication',
+    ],
+}
+
 def calculate_large_a(g, small_a, big_n):
     big_a = pow(g, small_a, big_n)
     if (big_a % big_n) == 0:
@@ -76,12 +150,6 @@ def compute_hkdf(ikm, salt):
     info_bits_update = INFO_BITS + bytearray(chr(1), 'utf-8')
     hmac_hash = hmac.new(prk, info_bits_update, hashlib.sha256).digest()
     return hmac_hash[:16]
-
-def custom_read(a: Dict[str, str]):
-    return { k: v[7:] for k, v in a.items() if v.startswith('custom:') }
-
-def custom_write(d: Dict[str, str]):
-    return [ { 'Name': f'custom:{k}', 'Value': str(v) } for k, v in d.items() ]
 
 def generate_small_a(big_n):
     random_long_int = get_random(128)
@@ -122,6 +190,21 @@ def pad_hex(long_int):
     elif hash_str[0] in '89ABCDEFabcdef':
         hash_str = f'00{hash_str}'
     return hash_str
+
+def decode_attributes(attributes: List[Dict[str, str]]):
+    return {
+        attr['Name'].removeprefix('custom:'): attr['Value']
+        for attr in attributes
+    }
+
+def encode_attributes(attributes: Dict[str, str]):
+    return [
+        {
+            'Name': k if k in COG_ATTRIBUTES else f'custom:{k}',
+            'Value': str(v),
+        }
+        for k, v in attributes.items()
+    ]
 
 class SRP():
 
@@ -180,6 +263,11 @@ class COG():
         else:
             self.client = boto3.client(CLIENT_NAME)
 
+    def admin_confirm(self, user_pool: str, user_name: str):
+        self.client.admin_confirm_sign_up(
+            UserPoolId = user_pool,
+            Username = user_name)
+
     def admin_get_user(self, user_pool: str, user_name: str):
         try:
             return self.client.admin_get_user(
@@ -203,6 +291,14 @@ class COG():
             }
         )
 
+    def admin_set_password(self, user_pool: str, user_name: str, password: str,
+            permanent: bool = True):
+        self.client.admin_set_user_password(
+            UserPoolId = user_pool,
+            Username = user_name,
+            Password = password,
+            Permanent = permanent)
+
     def confirm_forgot(self, client_id: str, name: str, code: str, password: str):
         self.client.confirm_forgot_password(
             ClientId = client_id,
@@ -217,16 +313,20 @@ class COG():
             ConfirmationCode = code)
 
     def create_user(self, user_pool: str, user_name: str, email: str,
-            custom: Dict[str, Any] = None,
+            action: str = 'SUPPRESS',
+            delivery: List[str] = [ 'EMAIL' ],
+            password: str = None,
+            attributes: Dict[str, Any] = None,
             meta: Dict[str, Any] = None):
-        attributes = [ { 'Name': 'email', 'Value': email } ]
-        if custom is not None:
-            attributes.extend(custom_write(custom))
         kwargs = {
-            'UserPoolId': user_pool,
+            'DesiredDeliveryMediums': delivery,
+            'MessageAction': action,
+            'UserAttributes': encode_attributes((attributes or {}) | { 'email': email }),
             'Username': user_name,
-            'UserAttributes': attributes,
+            'UserPoolId': user_pool,
         }
+        if password is not None:
+            kwargs['TemporaryPassword'] = password
         if meta is not None:
             kwargs['ClientMetadata'] = { k: str(v) for k, v in meta.items() }
         return self.client.admin_create_user(**kwargs)['User']
@@ -354,13 +454,7 @@ class COG():
 
     def update_attributes(self, pool_id: str, username: str, attributes: Dict[str, str]):
         kwargs = {
-            'UserAttributes': [
-                {
-                    'Name': k if k in COG_ATTRIBUTES else f'custom:{k}',
-                    'Value': str(v)
-                }
-                for k, v in attributes.items()
-            ],
+            'UserAttributes': encode_attributes(attributes),
             'Username': username,
             'UserPoolId': pool_id,
         }
