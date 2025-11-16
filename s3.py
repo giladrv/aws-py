@@ -14,6 +14,12 @@ from . import enval
 CLIENT_NAME = 's3'
 CLIENT_CONFIG = Config(s3 = { 'addressing_style': 'path' })
 
+class ClientMethod(Enum):
+    GET = 'get_object'
+    PUT = 'put_object'
+    DEL = 'delete_object'
+    HEAD = 'head_object'
+
 class RestoreTier(Enum):
     BLK = 'Bulk'
     STD = 'Standard'
@@ -305,6 +311,21 @@ class S3():
                 }
             ]
         }
+
+    def presign(self, key: str,
+            bucket: str = None,
+            expiration: int = 3600,
+            method: ClientMethod = ClientMethod.GET,
+        ):
+        params = {
+            'Bucket': self.get_request_bucket(bucket),
+            'Key': key,
+        }
+        return self.client.generate_presigned_url(
+            ClientMethod = method,
+            Params = params,
+            ExpiresIn = expiration
+        )
 
     def put(self, key: str, body: str,
             bucket: str = None,
