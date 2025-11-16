@@ -322,7 +322,7 @@ class S3():
             'Key': key,
         }
         return self.client.generate_presigned_url(
-            ClientMethod = method,
+            ClientMethod = method.value,
             Params = params,
             ExpiresIn = expiration
         )
