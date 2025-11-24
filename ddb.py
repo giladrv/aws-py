@@ -186,9 +186,9 @@ class TableWithUniques:
                 TransactItems = [ { 'Put': put_args | { 'Item': item } } for item in items ],
                 ReturnConsumedCapacity = 'TOTAL',
             )
-        except self.ddb.exceptions.ConditionalCheckFailedException as e:
+        except self.ddb.exceptions.TransactionCanceledException as e:
             res = e.response
-            print('ConditionalCheckFailedException', json.dumps(res, default = str))
+            print('TransactionCanceledException', json.dumps(res, default = str))
             raise
         print('DDB', res['ConsumedCapacity'])
         return { 'items': [ _unmarshal(item) for item in items ] }
