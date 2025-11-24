@@ -1,5 +1,5 @@
 # Standard
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable
 # External
 import boto3
@@ -91,6 +91,17 @@ class TableWithUniques:
         )
         print('DDB', res['ConsumedCapacity'])
 
+    def delete_sk(self, id_val: str, sk: str):
+        res = self.ddb.delete_item(
+            TableName = self.name,
+            Key = {
+                PK: _serialize(self._id_pk(id_val)),
+                SK: _serialize(sk.upper())
+            },
+            ReturnConsumedCapacity = 'TOTAL',
+        )
+        print('DDB', res['ConsumedCapacity'])
+
     def get(self, id_val: str, consistent = True):
         r = self.ddb.get_item(
             TableName = self.name,
@@ -103,6 +114,25 @@ class TableWithUniques:
         attrs.pop(PK, None)
         attrs.pop(SK, None)
         attrs[self.id_key] = id_val
+        return attrs
+
+    def get_sk(self, id_val: str, sk: str, consistent = False):
+        r = self.ddb.get_item(
+            TableName = self.name,
+            Key = {
+                PK: _serialize(self._id_pk(id_val)),
+                SK: _serialize(sk)
+            },
+            ConsistentRead = consistent,
+            ReturnConsumedCapacity = 'TOTAL',
+        )
+        print('DDB', r['ConsumedCapacity'])
+        item = r.get('Item')
+        if item is None:
+            return None
+        attrs = _unmarshal(item)
+        attrs.pop(PK, None)
+        attrs.pop(SK, None)
         return attrs
 
     def get_uq(self, uq_key: str, uq_val: str):
@@ -120,6 +150,26 @@ class TableWithUniques:
         id_val = uq_item[self.id_key]
         return self.get(id_val)
 
+    def list_sk(self, id_val: str, sk_prefix: str, consistent = False):
+        r = self.ddb.query(
+            TableName = self.name,
+            KeyConditionExpression = f'{PK} = :p AND begins_with({SK}, :s)',
+            ExpressionAttributeValues = {
+                ':p': _serialize(self._id_pk(id_val)),
+                ':s': _serialize(sk_prefix.upper())
+            },
+            ConsistentRead = consistent,
+            Limit = 10,
+            ReturnConsumedCapacity = 'TOTAL',
+        )
+        print('DDB', r['ConsumedCapacity'])
+        items = []
+        for item in r.get('Items', []):
+            attrs = _unmarshal(item)
+            attrs.pop(PK, None)
+            items.append(attrs)
+        return items
+
     def put(self, attrs: Dict[str, Any]):
         put_args = {
             'TableName': self.name,
@@ -135,8 +185,9 @@ class TableWithUniques:
             ReturnConsumedCapacity = 'TOTAL',
         )
         print('DDB', res['ConsumedCapacity'])
+        return { 'items': [ _unmarshal(item) for item in items ] }
 
-    def put_sk(self, id_val: str, sk: str, attrs: Dict[str, Any]):
+    def put_sk(self, id_val: str, sk: str, attrs: Dict[str, Any], ttl: timedelta = None):
         now = _now()
         body = {
             PK: self._id_pk(id_val),
@@ -145,12 +196,15 @@ class TableWithUniques:
             'created': now,
             'updated': now
         }
+        if ttl is not None:
+            body['ttl'] = now + ttl.total_seconds()
         res = self.ddb.put_item(
             TableName = self.name,
             Item = _serialize(body)['M'],
             ReturnConsumedCapacity = 'TOTAL',
         )
         print('DDB', res['ConsumedCapacity'])
+        return { 'created': now }
 
     def update(self, id_val: str, attrs: Dict[str, Any]):
         exclude = { PK, SK, self.id_key, 'created' }
