@@ -156,7 +156,7 @@ class TableWithUniques:
             KeyConditionExpression = f'{PK} = :p AND begins_with({SK}, :s)',
             ExpressionAttributeValues = {
                 ':p': _serialize(self._id_pk(id_val)),
-                ':s': _serialize(sk_prefix.upper())
+                ':s': _serialize(sk_prefix)
             },
             ConsistentRead = consistent,
             Limit = 10,
@@ -191,7 +191,7 @@ class TableWithUniques:
         now = _now()
         body = {
             PK: self._id_pk(id_val),
-            SK: sk.upper(),
+            SK: sk,
             **attrs,
             'created': now,
             'updated': now
