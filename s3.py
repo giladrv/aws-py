@@ -316,12 +316,15 @@ class S3():
             bucket: str = None,
             expiration: int = 3600,
             method: ClientMethod = ClientMethod.GET,
-            metadata: Dict[str, str] = None
+            metadata: Dict[str, str] = None,
+            content_type: str = None,
         ):
         params = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
         }
+        if content_type is not None:
+            params['ContentType'] = content_type
         if metadata is not None:
             params['Metadata'] = metadata
         return self.client.generate_presigned_url(
