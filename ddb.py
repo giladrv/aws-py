@@ -188,8 +188,22 @@ class TableWithUniques:
             )
         except self.ddb.exceptions.TransactionCanceledException as e:
             res = e.response
-            print('TransactionCanceledException', json.dumps(res, default = str))
-            raise
+            print('TransactionCanceledException:', json.dumps(res, default = str))
+            err = {}
+            reasons = res['CancellationReasons']
+            for i, reason in enumerate(reasons):
+                code = reason['Code']
+                if code == 'None':
+                    continue
+                if code != 'ConditionalCheckFailed':
+                    raise
+                if i == 0:
+                    err[self.id_key] = f'Item with {self.id_key}={id_val} already exists'
+                else:
+                    uq_key = self.uq_keys[i - 1]
+                    uq_val = attrs[uq_key]
+                    err[uq_key] = f'Item with {uq_key}={uq_val} already exists'
+            return { 'error': err }
         print('DDB', res['ConsumedCapacity'])
         return { 'items': [ _unmarshal(item) for item in items ] }
 
