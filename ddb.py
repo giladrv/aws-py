@@ -1,5 +1,6 @@
 # Standard
 from datetime import datetime, timedelta, timezone
+import json
 from typing import Any, Dict, Iterable
 # External
 import boto3
@@ -180,10 +181,15 @@ class TableWithUniques:
             self._item(attrs),
             *[ self._uq_item(id_val, uq_key, attrs[uq_key]) for uq_key in self.uq_keys ]
         ]
-        res = self.ddb.transact_write_items(
-            TransactItems = [ { 'Put': put_args | { 'Item': item } } for item in items ],
-            ReturnConsumedCapacity = 'TOTAL',
-        )
+        try:
+            res = self.ddb.transact_write_items(
+                TransactItems = [ { 'Put': put_args | { 'Item': item } } for item in items ],
+                ReturnConsumedCapacity = 'TOTAL',
+            )
+        except self.ddb.exceptions.ConditionalCheckFailedException as e:
+            res = e.response
+            print('ConditionalCheckFailedException', json.dumps(res, default = str))
+            raise
         print('DDB', res['ConsumedCapacity'])
         return { 'items': [ _unmarshal(item) for item in items ] }
 
