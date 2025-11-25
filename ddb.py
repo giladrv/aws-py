@@ -217,7 +217,7 @@ class TableWithUniques:
             'updated': now
         }
         if ttl is not None:
-            body['ttl'] = now + ttl.total_seconds()
+            body['ttl'] = now + int(ttl.total_seconds())
         res = self.ddb.put_item(
             TableName = self.name,
             Item = _serialize(body)['M'],
