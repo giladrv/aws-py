@@ -117,7 +117,7 @@ class TableWithUniques:
         attrs[self.id_key] = id_val
         return attrs
 
-    def get_sk(self, id_val: str, sk: str, consistent = False):
+    def get_sk(self, id_val: str, sk: str, consistent = True):
         r = self.ddb.get_item(
             TableName = self.name,
             Key = {
@@ -151,7 +151,7 @@ class TableWithUniques:
         id_val = uq_item[self.id_key]
         return self.get(id_val)
 
-    def list_sk(self, id_val: str, sk_prefix: str, consistent = False):
+    def list_sk(self, id_val: str, sk_prefix: str, consistent = True):
         r = self.ddb.query(
             TableName = self.name,
             KeyConditionExpression = f'{PK} = :p AND begins_with({SK}, :s)',
