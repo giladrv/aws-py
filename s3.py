@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Iterable, List
 # External
 import boto3
 from botocore.client import Config
+from botocore.response import StreamingBody
 # Internal
 from . import enval
 
@@ -333,7 +334,7 @@ class S3():
             ExpiresIn = expiration
         )
 
-    def put(self, key: str, body: str,
+    def put(self, key: str, body: bytes | str,
             bucket: str = None,
             meta: Dict[str, str] = None,
             content_type: str = None):
