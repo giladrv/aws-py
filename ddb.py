@@ -1,7 +1,9 @@
 # Standard
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 import json
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, List
 # External
 import boto3
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
@@ -28,16 +30,50 @@ def _serialize(v):
 def _unmarshal(item):
     return { k: des.deserialize(v) for k, v in item.items() } if item else None
 
-class ListAppend:
+class UpdateActionType(Enum):
+    ADD = 'ADD'
+    DEL = 'DELETE'
+    REM = 'REMOVE'
+    SET = 'SET'
+
+class UpdateAction(ABC):
+    @property
+    @abstractmethod
+    def clause(self) -> UpdateActionType:
+        pass
+    @property
+    @abstractmethod
+    def expression(self, key: str):
+        pass
+    @property
+    @abstractmethod
+    def value(self):
+        pass
+
+class UpdateAdd:
+    def __init__(self, items: set):
+        self.items = items
+    def action(self):
+        return UpdateActionType.ADD
+    def expression(self, key: str):
+        return f'#_{key} :_{key}'
+    def value(self):
+        return self.items
+
+class UpdateListAppend(UpdateAction):
     def __init__(self, items: Iterable, beginning: bool = False):
         self.items = items
         self.beginning = beginning
+    def clause(self):
+        return UpdateActionType.SET
     def expression(self, key: str):
         n = f'#_{key}'
         a = [ n, f':_{key}' ]
         if self.beginning:
             a.reverse()
         return f'list_append({", ".join(a)})'
+    def value(self):
+        return self.items
 
 PK = 'PK'
 SK = 'SK'
@@ -240,23 +276,28 @@ class TableWithUniques:
     def update(self, id_val: str, attrs: Dict[str, Any]):
         exclude = { PK, SK, self.id_key, 'created' }
         _attrs = { k: v for k, v in attrs.items() if k not in exclude } | { 'updated': _now() }
-        sets = []
-        names = {}
-        values = {}
+        acts: Dict[str, List[str]] = {}
+        names: Dict[str, str] = {}
+        values: Dict[str, Dict[str, Any]] = {}
         for key, val in _attrs.items():
             names[f'#_{key}'] = key
-            if isinstance(val, ListAppend):
+            if isinstance(val, UpdateAction):
+                act = val.clause.value
                 exp = val.expression(key)
-                val = val.items
+                val = val.value
             else:
+                act = UpdateActionType.SET.value
                 exp = f':_{key}'
-            sets.append(f'#_{key} = {exp}')
+            acts.setdefault(act, []).append(exp)
             values[f':_{key}'] = _serialize(val)
-        
+        exps = [ f'{k} ' + ', '.join(v) for k, v in acts.items() ]
+        print('UPDATE:names', names)
+        print('UPDATE:exps', exps)
+        print('UPDATE:vals', values)
         res = self.ddb.update_item(
             TableName = self.name,
             Key = self._id_key(id_val),
-            UpdateExpression = 'SET ' + ', '.join(sets),
+            UpdateExpression = '\n'.join(exps),
             ExpressionAttributeNames = names,
             ExpressionAttributeValues = values,
             ConditionExpression = f'attribute_exists({PK})',
