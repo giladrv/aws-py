@@ -41,7 +41,6 @@ class UpdateAction(ABC):
     @abstractmethod
     def clause(self) -> UpdateActionType:
         pass
-    @property
     @abstractmethod
     def expression(self, key: str):
         pass
@@ -50,13 +49,15 @@ class UpdateAction(ABC):
     def value(self):
         pass
 
-class UpdateAdd:
+class UpdateAdd(UpdateAction):
     def __init__(self, items: set):
         self.items = items
-    def action(self):
+    @property
+    def clause(self):
         return UpdateActionType.ADD
     def expression(self, key: str):
         return f'#_{key} :_{key}'
+    @property
     def value(self):
         return self.items
 
@@ -64,14 +65,15 @@ class UpdateListAppend(UpdateAction):
     def __init__(self, items: Iterable, beginning: bool = False):
         self.items = items
         self.beginning = beginning
+    @property
     def clause(self):
         return UpdateActionType.SET
     def expression(self, key: str):
-        n = f'#_{key}'
-        a = [ n, f':_{key}' ]
+        a = [ f'#_{key}', f':_{key}' ]
         if self.beginning:
             a.reverse()
-        return f'list_append({", ".join(a)})'
+        return f'#_{key} = list_append({", ".join(a)})'
+    @property
     def value(self):
         return self.items
 
@@ -287,7 +289,7 @@ class TableWithUniques:
                 val = val.value
             else:
                 act = UpdateActionType.SET.value
-                exp = f':_{key}'
+                exp = f'#_{key} = :_{key}'
             acts.setdefault(act, []).append(exp)
             values[f':_{key}'] = _serialize(val)
         exps = [ f'{k} ' + ', '.join(v) for k, v in acts.items() ]
