@@ -28,6 +28,17 @@ def _serialize(v):
 def _unmarshal(item):
     return { k: des.deserialize(v) for k, v in item.items() } if item else None
 
+class ListAppend:
+    def __init__(self, items: Iterable, beginning: bool = False):
+        self.items = items
+        self.beginning = beginning
+    def expression(self, key: str):
+        n = f'#_{key}'
+        a = [ n, f':_{key}' ]
+        if self.beginning:
+            a.reverse()
+        return f'list_append({", ".join(a)})'
+
 PK = 'PK'
 SK = 'SK'
 
@@ -229,9 +240,19 @@ class TableWithUniques:
     def update(self, id_val: str, attrs: Dict[str, Any]):
         exclude = { PK, SK, self.id_key, 'created' }
         _attrs = { k: v for k, v in attrs.items() if k not in exclude } | { 'updated': _now() }
-        sets = [ f'#_{k} = :_{k}' for k in _attrs ]
-        names = { f'#_{k}': k for k in _attrs }
-        values = { f':_{k}': _serialize(v) for k, v in _attrs.items() }
+        sets = []
+        names = {}
+        values = {}
+        for key, val in _attrs.items():
+            names[f'#_{key}'] = key
+            if isinstance(val, ListAppend):
+                exp = val.expression(key)
+                val = val.items
+            else:
+                exp = f':_{key}'
+            sets.append(f'#_{key} = {exp}')
+            values[f':_{key}'] = _serialize(val)
+        
         res = self.ddb.update_item(
             TableName = self.name,
             Key = self._id_key(id_val),
