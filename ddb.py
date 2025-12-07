@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+from itertools import islice
 import json
 from typing import Any, Dict, Iterable, List
 # External
@@ -165,6 +166,41 @@ class TableWithUniques:
         attrs.pop(SK, None)
         attrs[self.id_key] = id_val
         return attrs
+
+    def get_many(self, id_vals: Iterable[str], consistent = True):
+        result: List[Dict[str, Any]] = []
+        req_keys: List[Dict[str, Any]] = []
+        kwargs = {
+            'RequestItems': {
+                self.name: {
+                    'Keys': req_keys,
+                    'ConsistentRead': consistent,
+                }
+            },
+            'ReturnConsumedCapacity': 'TOTAL',
+        }
+        id_vals_iter = iter(id_vals)
+        def fill_keys(n: int = 100):
+            batch = islice(id_vals_iter, n - len(req_keys))
+            req_keys.extend([ self._id_key(id) for id in batch ])
+        fill_keys()
+        while len(req_keys) > 0 :
+            r: dict = self.ddb.batch_get_item(**kwargs)
+            print('DDB', r['ConsumedCapacity'])
+            all_responses: dict = r.get('Responses', {})
+            responses: List[dict] = all_responses.get(self.name, [])
+            for item in responses:
+                attrs = _unmarshal(item)
+                attrs.pop(SK, None)
+                pk: str = attrs.pop(PK)
+                attrs[self.id_key] = pk.split('#')[-1]
+                result.append(attrs)
+            all_unprocessed: dict = r.get('UnprocessedKeys', {})
+            unprocessed: dict = all_unprocessed.get(self.name, {})
+            req_keys.clear()
+            req_keys.extend(unprocessed.get('Keys', []))
+            fill_keys()
+        return result
 
     def get_sk(self, id_val: str, sk: str, consistent = True):
         r = self.ddb.get_item(
