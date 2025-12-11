@@ -12,7 +12,7 @@ from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 CLIENT_NAME = 'dynamodb'
 
 def _ddb():
-    boto3.client(CLIENT_NAME)
+    return boto3.client(CLIENT_NAME)
 
 class DDB():
 
