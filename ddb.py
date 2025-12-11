@@ -4,12 +4,15 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from itertools import islice
 import json
-from typing import Any, Dict, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List, NotRequired, TypedDict
 # External
 import boto3
 from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 CLIENT_NAME = 'dynamodb'
+
+def _ddb():
+    boto3.client(CLIENT_NAME)
 
 class DDB():
 
@@ -17,7 +20,7 @@ class DDB():
         if client is not None:
             self.client = client
         else:
-            self.client = boto3.client(CLIENT_NAME)
+            self.client = _ddb()
 
 ser = TypeSerializer()
 des = TypeDeserializer()
@@ -30,6 +33,15 @@ def _serialize(v):
 
 def _unmarshal(item):
     return { k: des.deserialize(v) for k, v in item.items() } if item else None
+
+class Encoding(Enum):
+    NONE = 0
+    DEFAULT = 1
+
+ENCODERS: Dict[Encoding, Callable] = {
+    Encoding.NONE: lambda x: x,
+    Encoding.DEFAULT: _serialize,
+}
 
 class UpdateActionType(Enum):
     ADD = 'ADD'
@@ -78,8 +90,22 @@ class UpdateListAppend(UpdateAction):
     def value(self):
         return self.items
 
+class RecordTimestamps(TypedDict):
+    created: int
+    updated: int
+    ttl: NotRequired[int]
+
+def new_record(ttl: timedelta = None):
+    now = _now()
+    rec = RecordTimestamps(created = now, updated = now)
+    if ttl is not None:
+        rec['ttl'] = int(now + ttl.total_seconds())
+    return rec
+
 PK = 'PK'
 SK = 'SK'
+
+type Item = Dict[str, Any]
 
 class TableWithUniques:
 
@@ -91,25 +117,23 @@ class TableWithUniques:
         self.id_key = id_key
         self.uq_keys = uq_keys or []
 
-    def _id_key(self, id_val: str):
+    def _id_key(self, id_val: str,
+            encoding: Encoding = Encoding.DEFAULT,
+        ):
+        encoder = ENCODERS[encoding]
         return {
-            PK: _serialize(self._id_pk(id_val)),
-            SK: _serialize(self.id_key.upper())
+            PK: encoder(self._id_pk(id_val)),
+            SK: encoder(self.id_key.upper())
         }
 
     def _id_pk(self, id_val: str):
         return f'{self.id_key.upper()}#{id_val}'
 
-    def _item(self, attrs: Dict[str, Any]):
+    def _item(self, attrs: Item):
         id_val = attrs[self.id_key]
-        now = _now()
-        body = {
-            PK: self._id_pk(id_val),
-            SK: self.id_key.upper(),
-            **{ k: v for k, v in attrs.items() if k != self.id_key },
-            'created': now,
-            'updated': now,
-        }
+        body = self._id_key(id_val, encoding = Encoding.NONE) \
+                | { k: v for k, v in attrs.items() if k != self.id_key } \
+                | new_record()
         return _serialize(body)['M']
 
     def _uq_key(self, uq_key: str, uq_val: str):
@@ -168,8 +192,8 @@ class TableWithUniques:
         return attrs
 
     def get_many(self, id_vals: Iterable[str], consistent = True):
-        result: List[Dict[str, Any]] = []
-        req_keys: List[Dict[str, Any]] = []
+        result: List[Item] = []
+        req_keys: List[Item] = []
         kwargs = {
             'RequestItems': {
                 self.name: {
@@ -228,7 +252,6 @@ class TableWithUniques:
             ExpressionAttributeValues = {
                 ':p': _serialize(self._uq_pk(uq_key, uq_val))
             },
-            Limit = 1,
             ReturnConsumedCapacity = 'TOTAL',
         )
         print('DDB', r['ConsumedCapacity'])
@@ -237,7 +260,7 @@ class TableWithUniques:
         return self.get(id_val)
 
     def list_sk(self, id_val: str, sk_prefix: str, consistent = True):
-        r = self.ddb.query(
+        r: dict = self.ddb.query(
             TableName = self.name,
             KeyConditionExpression = f'{PK} = :p AND begins_with({SK}, :s)',
             ExpressionAttributeValues = {
@@ -245,18 +268,17 @@ class TableWithUniques:
                 ':s': _serialize(sk_prefix)
             },
             ConsistentRead = consistent,
-            Limit = 10,
             ReturnConsumedCapacity = 'TOTAL',
         )
         print('DDB', r['ConsumedCapacity'])
-        items = []
+        items: List[Item] = []
         for item in r.get('Items', []):
             attrs = _unmarshal(item)
             attrs.pop(PK, None)
             items.append(attrs)
         return items
 
-    def put(self, attrs: Dict[str, Any]):
+    def put(self, attrs: Item):
         put_args = {
             'TableName': self.name,
             'ConditionExpression': f'attribute_not_exists({PK})'
@@ -292,31 +314,27 @@ class TableWithUniques:
         print('DDB', res['ConsumedCapacity'])
         return { 'items': [ _unmarshal(item) for item in items ] }
 
-    def put_sk(self, id_val: str, sk: str, attrs: Dict[str, Any], ttl: timedelta = None):
-        now = _now()
-        body = {
+    def put_sk(self, id_val: str, sk: str, attrs: Item, ttl: timedelta = None):
+        rec = new_record(ttl)
+        keys = {
             PK: self._id_pk(id_val),
             SK: sk,
-            **attrs,
-            'created': now,
-            'updated': now
         }
-        if ttl is not None:
-            body['ttl'] = now + int(ttl.total_seconds())
+        body = keys | attrs | rec
         res = self.ddb.put_item(
             TableName = self.name,
             Item = _serialize(body)['M'],
             ReturnConsumedCapacity = 'TOTAL',
         )
         print('DDB', res['ConsumedCapacity'])
-        return { 'created': now }
+        return rec
 
-    def update(self, id_val: str, attrs: Dict[str, Any]):
+    def update(self, id_val: str, attrs: Item):
         exclude = { PK, SK, self.id_key, 'created' }
         _attrs = { k: v for k, v in attrs.items() if k not in exclude } | { 'updated': _now() }
         acts: Dict[str, List[str]] = {}
         names: Dict[str, str] = {}
-        values: Dict[str, Dict[str, Any]] = {}
+        values: Dict[str, Item] = {}
         for key, val in _attrs.items():
             names[f'#_{key}'] = key
             if isinstance(val, UpdateAction):
