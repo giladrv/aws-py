@@ -3,6 +3,7 @@ from enum import Enum
 import json
 import os
 import shutil
+from typing import List
 from urllib.parse import quote, urlencode, urlunparse
 # External
 import boto3
@@ -23,6 +24,59 @@ DEF_KWARGS = {
 
 CLIENT_NAME = 'lambda'
 
+RUNTIMES = [
+    'dotnet6',
+    'dotnet8',
+    'dotnet10',
+    'dotnetcore1.0',
+    'dotnetcore2.0',
+    'dotnetcore2.1',
+    'dotnetcore3.1',
+    'go1.x',
+    'java8',
+    'java8.al2',
+    'java11',
+    'java17',
+    'java21',
+    'java25',
+    'nodejs',
+    'nodejs4.3',
+    'nodejs4.3-edge',
+    'nodejs6.10',
+    'nodejs8.10',
+    'nodejs10.x',
+    'nodejs12.x',
+    'nodejs14.x',
+    'nodejs16.x',
+    'nodejs18.x',
+    'nodejs20.x',
+    'nodejs22.x',
+    'nodejs24.x',
+    'provided',
+    'provided.al2',
+    'provided.al2023',
+    'python2.7',
+    'python3.6',
+    'python3.7',
+    'python3.8',
+    'python3.9',
+    'python3.10',
+    'python3.11',
+    'python3.12',
+    'python3.13',
+    'python3.14',
+    'ruby2.5',
+    'ruby2.7',
+    'ruby3.2',
+    'ruby3.3',
+    'ruby3.4',
+]
+
+ARCHITECTURES = [
+    'arm64',
+    'x86_64',
+]
+
 class InvokeType(Enum):
     DRY = 'DryRun'
     EVT = 'Event'
@@ -34,6 +88,20 @@ class OutputType(Enum):
     JsonPayload = 2
     Body = 3
     JsonBody = 4
+
+class S3Content:
+    def __init__(self, bucket: str, key: str, version: str = None):
+        self.bucket = bucket
+        self.key = key
+        self.version = version
+    def to_dict(self):
+        content = {
+            'S3Bucket': self.bucket,
+            'S3Key': self.key,
+        }
+        if self.version is not None:
+            content['S3ObjectVersion'] = self.version
+        return content
 
 def clear_tmp(verbose = False):
     tmp_size = 0
@@ -145,6 +213,31 @@ class LMD():
     def event(self, name: str, payload: dict):
         return self.invoke(name, payload, InvokeType.EVT)
 
-    def request(self, name: str, payload: dict, output_type: OutputType = OutputType.JsonBody):
+    def publish_layer(self, name: str, content: S3Content | bytes,
+            description: str = None,
+            runtimes: List[str] = None,
+            architectures: List[str] = None,
+        ):
+        if isinstance(content, S3Content):
+            content_dict = content.to_dict()
+        elif isinstance(content, bytes):
+            content_dict = { 'ZipFile': content }
+        else:
+            raise ValueError('Invalid layer content')
+        kwargs = {
+            'LayerName': name,
+            'Content': content_dict,
+        }
+        if description is not None:
+            kwargs['Description'] = description
+        if runtimes is not None:
+            kwargs['CompatibleRuntimes'] = runtimes
+        if architectures is not None:
+            kwargs['CompatibleArchitectures'] = architectures
+        return self.client.publish_layer_version(**kwargs)
+
+    def request(self, name: str, payload: dict,
+            output_type: OutputType = OutputType.JsonBody
+        ):
         response = self.invoke(name, payload, InvokeType.REQ)
         return OUT_FUN[output_type](response)
