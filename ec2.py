@@ -1,5 +1,5 @@
 # Standard
-from typing import List
+from typing import Dict, List
 # External
 import boto3
 
@@ -29,6 +29,27 @@ class EC2():
             for reservation in res.get('Reservations', [])
             for instance in reservation.get('Instances', [])
         }
+
+    def filter_instances(self, filters: Dict[str, List[str]]):
+        kwargs = {
+            'Filters': [
+                { 'Name': name, 'Values': [ str(v) for v in values ] }
+                for name, values in filters.items()
+            ],
+            'MaxResults': 100,
+        }
+        out = {}
+        while True:
+            res = self.client.describe_instances(**kwargs)
+            out |= {
+                instance['InstanceId']: instance
+                for reservation in res.get('Reservations', [])
+                for instance in reservation.get('Instances', [])
+            }
+            kwargs['NextToken'] = res['NextToken']
+            if kwargs['NextToken'] is None:
+                break
+        return out
 
     def get_default_vpc_id(self) -> str:
         if self.default_vpc is None:
