@@ -40,13 +40,13 @@ class EC2():
         }
         out = {}
         while True:
-            res = self.client.describe_instances(**kwargs)
+            res: dict = self.client.describe_instances(**kwargs)
             out |= {
                 instance['InstanceId']: instance
                 for reservation in res.get('Reservations', [])
                 for instance in reservation.get('Instances', [])
             }
-            kwargs['NextToken'] = res['NextToken']
+            kwargs['NextToken'] = res.get('NextToken')
             if kwargs['NextToken'] is None:
                 break
         return out
