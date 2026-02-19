@@ -308,7 +308,7 @@ class COG():
                 'ProviderAttributeValue': idp_user
             }
         }
-        return self.client.admin_disable_provider_for_user(**kwargs)
+        self.client.admin_disable_provider_for_user(**kwargs)
 
     def confirm_forgot(self, client_id: str, name: str, code: str, password: str):
         self.client.confirm_forgot_password(
