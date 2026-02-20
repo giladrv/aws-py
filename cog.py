@@ -268,7 +268,7 @@ class COG():
             UserPoolId = user_pool,
             Username = user_name)
 
-    def admin_get_user(self, user_pool: str, user_name: str):
+    def admin_get_user(self, user_pool: str, user_name: str) -> dict | None:
         try:
             return self.client.admin_get_user(
                 UserPoolId = user_pool,
@@ -328,7 +328,7 @@ class COG():
             delivery: List[str] = [ 'EMAIL' ],
             password: str = None,
             attributes: Dict[str, Any] = None,
-            meta: Dict[str, Any] = None):
+            meta: Dict[str, Any] = None) -> dict:
         kwargs = {
             'DesiredDeliveryMediums': delivery,
             'MessageAction': action,
