@@ -198,7 +198,7 @@ class S3():
 
     def get_object(self, key: str,
             bucket: str = None,
-            requester: bool = None):
+            requester: bool = None) -> dict:
         kwargs = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
