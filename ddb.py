@@ -302,7 +302,7 @@ class TableWithUniques:
                 code = reason['Code']
                 if code == 'None':
                     continue
-                if code != 'ConditionalCheckFailed':
+                if code != 'ConditionalCheckFailedException':
                     raise
                 if i == 0:
                     err[self.id_key] = f'Item with {self.id_key}={id_val} already exists'
