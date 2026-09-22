@@ -291,6 +291,18 @@ class COG():
             }
         )
 
+    def admin_set_attributes(self, pool: str, user_name: str, attributes: Dict[str, Any],
+        meta: Dict[str, Any] = None,
+    ):
+        kwargs = {
+            'UserPoolId': pool,
+            'Username': user_name,
+            'UserAttributes': encode_attributes(attributes),
+        }
+        if meta is not None:
+            kwargs['ClientMetadata'] = { k: str(v) for k, v in meta.items() }
+        self.client.admin_update_user_attributes(**kwargs)
+
     def admin_set_password(self, user_pool: str, user_name: str, password: str,
             permanent: bool = True):
         self.client.admin_set_user_password(
