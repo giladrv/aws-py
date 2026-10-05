@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import os
 import re
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, Iterable, Iterator, List
 # External
 import boto3
 
@@ -16,7 +16,7 @@ COG_ACTIONS = [
     'signup',
 ]
 
-COG_ATTRIBUTES = set([
+COG_ATTRIBUTES = {
     'address',
     'birthdate',
     'email',
@@ -36,7 +36,7 @@ COG_ATTRIBUTES = set([
     'updated_at',
     'website',
     'zoneinfo',
-])
+}
 
 CLIENT_NAME = 'cognito-idp'
 
@@ -197,14 +197,30 @@ def decode_attributes(attributes: List[Dict[str, str]]):
         for attr in attributes
     }
 
+def encode_attribute_name(name: str):
+    if name in COG_ATTRIBUTES:
+        return name
+    else:
+        return f'custom:{name}'
+
 def encode_attributes(attributes: Dict[str, str]):
     return [
         {
-            'Name': k if k in COG_ATTRIBUTES else f'custom:{k}',
+            'Name': encode_attribute_name(k),
             'Value': str(v),
         }
         for k, v in attributes.items()
     ]
+
+def simple_user_dict(user: dict) -> dict:
+    return {
+        'attributes': decode_attributes(user['UserAttributes']),
+        'created': user['UserCreateDate'],
+        'enabled': user['Enabled'],
+        'status': user['UserStatus'],
+        'updated': user['UserLastModifiedDate'],
+        'username': user['Username'],
+    }
 
 class SRP():
 
@@ -267,6 +283,14 @@ class COG():
         self.client.admin_confirm_sign_up(
             UserPoolId = user_pool,
             Username = user_name)
+
+    def admin_delete_attributes(self, pool: str, user: str, names: Iterable[str]):
+        kwargs = {
+            'UserPoolId': pool,
+            'Username': user,
+            'UserAttributeNames': list(map(encode_attribute_name, set(names))),
+        }
+        self.client.admin_delete_user_attributes(**kwargs)
 
     def admin_get_user(self, user_pool: str, user_name: str) -> dict | None:
         try:
