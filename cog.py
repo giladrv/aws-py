@@ -41,11 +41,10 @@ COG_ATTRIBUTES = {
 CLIENT_NAME = 'cognito-idp'
 
 IDP_MAP = {
-    'apple': 'SignInWithApple',
     'facebook': 'Facebook',
     'google': 'Google',
     'loginwithamazon': 'LoginWithAmazon',
-    'SignInWithApple': 'SignInWithApple',
+    'signinwithapple': 'SignInWithApple',
 }
 
 N_HEX = 'FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1' \
