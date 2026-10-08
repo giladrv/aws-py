@@ -319,7 +319,7 @@ class S3():
             method: ClientMethod = ClientMethod.GET,
             metadata: Dict[str, str] = None,
             content_type: str = None,
-        ):
+        ) -> str:
         params = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
