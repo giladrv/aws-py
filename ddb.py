@@ -11,6 +11,8 @@ from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
 
 CLIENT_NAME = 'dynamodb'
 
+CONDITION_FAILED = 'ConditionalCheckFailedException'
+
 def _ddb():
     return boto3.client(CLIENT_NAME)
 
@@ -302,7 +304,7 @@ class TableWithUniques:
                 code = reason['Code']
                 if code == 'None':
                     continue
-                if code != 'ConditionalCheckFailedException':
+                if code != CONDITION_FAILED:
                     raise
                 if i == 0:
                     err[self.id_key] = f'Item with {self.id_key}={id_val} already exists'
