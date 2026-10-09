@@ -4,7 +4,7 @@ from enum import Enum
 import os
 from queue import Queue, Empty as QEmpty
 from threading import Thread
-from typing import Any, Callable, Dict, Iterable, List
+from typing import Any, Callable, Dict, Iterable, List, overload
 # External
 import boto3
 from botocore.client import Config
@@ -313,13 +313,21 @@ class S3():
             ]
         }
 
-    def presign(self, key: str,
+    @overload
+    def presign(self, key: None, **kwargs) -> None: ...
+
+    @overload
+    def presign(self, key: str, **kwargs) -> str: ...
+
+    def presign(self, key: str | None,
             bucket: str = None,
             expiration: int = 3600,
             method: ClientMethod = ClientMethod.GET,
             metadata: Dict[str, str] = None,
             content_type: str = None,
-        ) -> str:
+        ) -> str | None:
+        if key is None:
+            return None
         params = {
             'Bucket': self.get_request_bucket(bucket),
             'Key': key,
